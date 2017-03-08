@@ -5,8 +5,10 @@
  *  Created On: Jan 20, 2017
  *  Last Updated: March 2, 2017
  *      Author(s): Brandon Klefman
+ *                 Damian Barraza
+ *                 Abigail Couto
  *
- *      Purpose: Flight computer for the APOPHIS platform.
+ *      Purpose: Primarty attitude control subsystem test.
  *
  */
 
