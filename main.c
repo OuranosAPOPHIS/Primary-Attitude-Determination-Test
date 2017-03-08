@@ -8,7 +8,7 @@
  *                 Damian Barraza
  *                 Abigail Couto
  *
- *      Purpose: Primarty attitude control subsystem test.
+ *      Purpose: Primarty attitude determination: GNC subsystem test.
  *
  */
 
@@ -1079,6 +1079,38 @@ void ProcessIMUData(void) {
 		g_fMagData[1] = ((i8MagData[1] / g_fMagLSB) - g_MagBias[1]) / 1e6;
 		g_fMagData[2] = ((i8MagData[2] / g_fMagLSB) - g_MagBias[2]) / 1e6;
 
+		//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		// 
+		// In this block, input the calibration values from IMU_Calibration.m
+		/* Abby's attempt at adding scale factors and misalignment terms to calibration of gyro and accel data. 
+		/* We will have to duplicate this for the else if that follows.
+		 * 
+		/* Gyro Misalignment and Scale Factor terms are input from IMU_Calibration.m
+		 * Mgxy = (insertMgxy here)
+		 * Mgxz = (insertMgxz here)
+		 * Mgyx = (insertMgyx here)
+		 * Mgyz = (insertMgyz here)
+		 * Mgzx = (insertMgzx here)
+		 * Mgzy = (insertMgzy here)
+		 * Sgx = (insert Sgx here)
+		 * Sgy = (insert Sgy here) 
+		 * Sgz = (insert Sgz here)
+		 
+		/* Common Denominator:
+		 * DivideMe = Sgx+Sgy+Sgz-Mgxy*Mgyx-Mgxz*Mgzx-Mgyz*Mgzy+Sgx*Sgy+Sgx*Sgz+Sgy*Sgz
+		 		+Mgxy*Mgyz*Mgzx+Mgxz*Mgyx*Mgzy-Mgxy*Mgyx*Sgz-Mgxz*Mgzx*Sgy-Mgyz*Mgzy*Sgx+Sgx*Sgy*Sgz +1;
+		 		
+		 * i16GyroData[0] = (-((((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8])- g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz)+
+		 		((((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8])- g_GyroBias[0]) * (Sgy+Sgz-Mgyz*Mgzy+Sgy*Sgz+1)) -
+				((((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8])- g_GyroBias[0]) * (Mgxz-Mgxy*Mgyz+Mgxz*Sgy))) / DivideMe;
+		 * i16GyroData[1] = (-((((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10])- g_GyroBias[1]) * (Mgyx-Mgyz*Mgzx+Mgyx*Sgz)+
+		 		((((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10])- g_GyroBias[1]) * (Sgx+Sgz-Mgxz*Mgzx+Sgx*Sgz+1)) -
+				((((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10])- g_GyroBias[1]) * (Mgyz-Mgxz*Mgyx+Mgyz*Sgx))) / DivideMe;
+		 * i16GyroData[1] = (-((((int16_t) IMUData[13] << 8) + (int8_t) IMUData[12])- g_GyroBias[2]) * (Mgzx-Mgyx*Mgzy+Mgzx*Sgy)+
+		 		((((int16_t) IMUData[13] << 8) + (int8_t) IMUData[12])- g_GyroBias[2]) * (Sgx+Sgy-Mgxy*Mgyx+Sgx*Sgy+1)) -
+				((((int16_t) IMUData[13] << 8) + (int8_t) IMUData[12])- g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx))) / DivideMe;		
+		*/
+		
 		//
 		// Set the gyro data to the global variables.
 		i16GyroData[0] = (((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8])
@@ -1093,7 +1125,38 @@ void ProcessIMUData(void) {
 		g_fGyroData[0] = ((float) (i16GyroData[0])) / g_fGyroLSB;
 		g_fGyroData[1] = ((float) (i16GyroData[1])) / g_fGyroLSB;
 		g_fGyroData[2] = ((float) (i16GyroData[2])) / g_fGyroLSB;
-
+		
+		//
+		/* Same attempt, but with the accelerometer calibration.
+		/* Accel Misalignment and Scale Factor terms are input from IMU_Calibration.m
+		 * Maxy = (insertMaxy here)
+		 * Maxz = (insertMaxz here)
+		 * Mayx = (insertMayx here)
+		 * Mayz = (insertMayz here)
+		 * Mazx = (insertMazx here)
+		 * Mazy = (insertMazy here)
+		 * Sax = (insert Sax here)
+		 * Say = (insert Say here) 
+		 * Saz = (insert Saz here)
+		/* Accel bias terms go here
+		 * AccelBiasX = ();
+		 * AccelBiasY = ();
+		 * AccelBiasZ = ();
+		 
+		 /* Common Denominator:
+		 * DivideMe = Sax+Say+Saz-Maxy*Mayx-Maxz*Mazx-Mayz*Mazy+Sax*Say+Sax*Saz+Say*Saz
+		 		+Maxy*Mayz*Mazx+Maxz*Mayx*Mazy-Maxy*Mayx*Saz-Maxz*Mazx*Say-Mayz*Mazy*Sax+Sax*Say*Saz +1;
+		 		
+		 * i16AccelData[0] = (-((((int16_t) IMUData[15] << 8) + (int8_t) IMUData[14])- AccelBiasX) * (Maxy-Maxz*Mazy+Maxy*Saz)+
+		 		((((int16_t) IMUData[15] << 8) + (int8_t) IMUData[14])- AccelBiasX) * (Say+Saz-Mayz*Mazy+Say*Saz+1)) -
+				((((int16_t) IMUData[15] << 8) + (int8_t) IMUData[14])- AccelBiasX) * (Maxz-Maxy*Mayz+Maxz*Say))) / DivideMe;
+		 * i16AccelData[1] = (-((((int16_t) IMUData[17] << 8) + (int8_t) IMUData[16])- AccelBiasY) * (Mayx-Mayz*Mazx+Mayx*Saz)+
+		 		((((int16_t) IMUData[17] << 8) + (int8_t) IMUData[16])- AccelBiasY) * (Sax+Saz-Maxz*Mazx+Sax*Saz+1)) -
+				((((int16_t) IMUData[17] << 8) + (int8_t) IMUData[16])- AccelBiasY) * (Mayz-Maxz*Mayx+Mayz*Sax))) / DivideMe;
+		 * i16AccelData[1] = (-((((int16_t) IMUData[19] << 8) + (int8_t) IMUData[18])- AccelBiasZ) * (Mazx-Mayx*Mazy+Mazx*Say)+
+		 		((((int16_t) IMUData[19] << 8) + (int8_t) IMUData[18])- AccelBiasZ) * (Sax+Say-Maxy*Mayx+Sax*Say+1)) -
+				((((int16_t) IMUData[19] << 8) + (int8_t) IMUData[18])- AccelBiasZ) * (Mazy-Maxy*Mazx+Mazy*Sax))) / DivideMe;		
+		*/
 		//
 		// Set the accelerometer data.
 		i16AccelData[0] = (((int16_t) IMUData[15] << 8) + (int8_t) IMUData[14]);
