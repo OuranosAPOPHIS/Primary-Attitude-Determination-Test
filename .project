@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>APOPHIS v1.0</name>
+	<name>Primary Attitude Test</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -27,7 +27,7 @@
 	<variableList>
 		<variable>
 			<name>SW_ROOT</name>
-			<value>file:/E:/TM4C1294XL</value>
+			<value>file:/C:/Tivaware/TM4C1294XL</value>
 		</variable>
 	</variableList>
 </projectDescription>

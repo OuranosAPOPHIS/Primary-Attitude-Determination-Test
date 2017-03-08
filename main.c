@@ -2,8 +2,9 @@
  * Team Ouranos
  * Project: Aerial Platform for Overland Haul and Import System (APOPHIS)
  *
- *  Created On: Jan 20, 2017
- *  Last Updated: March 2, 2017
+ *  Created On: March 7 , 2017
+ *  Last Updated: March 8, 2017
+ *  Test Dat: March 8, 2017
  *      Author(s): Brandon Klefman
  *                 Damian Barraza
  *                 Abigail Couto
@@ -37,16 +38,15 @@
 
 #include "sensorlib/comp_dcm.h"
 
-#include "buttons.h"
+#include "misc/buttons.h"
 
 #include "utils/uartstdio.h"
 
 #include "initializations.h"
 #include "APOPHIS_pin_map.h"
 #include "packet_format.h"
-#include "bmi160.h"
-#include "i2c_driver.h"
-#include "bme280.h"
+#include "sensors/bmi160.h"
+#include "sensors/i2c_driver.h"
 
 //*****************************************************************************
 //
@@ -79,32 +79,15 @@
 void SysTickIntHandler(void);
 void ConsoleIntHandler(void);
 void RadioIntHandler(void);
-void GPSIntHandler(void);
-void GndMtr1IntHandler(void);
-void GndMtr2IntHandler(void);
-void Timer2AInterrupt(void);
-void Timer2BInterrupt(void);
-void Timer3AInterrupt(void);
-void Timer3BInterrupt(void);
-void Timer1AInterrupt(void);
-void Timer1BInterrupt(void);
-void SolenoidInterrupt(void);
 void BMI160IntHandler(void);
-void BME280IntHandler(void);
 void RadioTimeoutIntHandler(void);
 void TurnOnLED(uint32_t LEDNum);
 void TurnOffLED(uint32_t LEDNum);
 void Menu(char CharReceived);
-void ProcessGPS(void);
 void ProcessRadio(void);
-void ProcessADC(void);
-int ProcessUltraSonic(uint32_t SysClockSpeed);
-void ActivateSolenoids(void);
-void DeactivateSolenoids(void);
 void SendPacket(void);
 void ProcessIMUData(void);
 void WaitForButtonPress(uint8_t ButtonState);
-void UpdateTrajectory(void);
 
 //*****************************************************************************
 //
@@ -132,19 +115,9 @@ typedef struct {
 	float fTempTargetLong; // Temporary target longitude for before the location is set by the GS.
 } SystemStatus;
 
-typedef struct {
-	float fGndMtrLWThrottle;
-	float fGndMtrRWThrottle;
-	uint32_t fAirMtr1Throttle;
-	float fAirMtr2Throttle;
-	float fAirMtr3Throttle;
-	float fAirMtr4Throttle;
-#if !APOPHIS
-	float fAirMtr5Throttle;
-	float fAirMtr6Throttle;
-#endif
-} SystemThrottle;
-
+//
+// Global status structure.
+SystemStatus sStatus;
 
 //
 // Radio packet to be sent to the ground station.
@@ -191,10 +164,19 @@ bool g_RadioFlag = false;
 // Flag to indicate when to print for the trajectory information.
 bool g_PrintFlag = false;
 
-
 /*
  * Acceleromter and Gyro global values.
  */
+
+//
+// Flag to print raw data to console.
+bool g_PrintRawBMIData = false;
+
+//
+// Comp DCM instance structure.
+tCompDCM g_sCompDCMInst;
+bool g_bDCMStarted;
+
 //
 // Temporary storage for the accel and gyro data received from the BMI160.
 // Each x,y,z value takes up two bytes.
@@ -215,8 +197,8 @@ float g_fMagLSB = 16;
 //
 // Offset compensation data for the accel and gyro.
 uint8_t g_offsetData[7] = { 0 };
-int16_t g_GyroBias[3] = { 0 };
-int16_t g_AccelBias[3] = { 0 };
+
+int16_t g_GyroCalBias[3] = { 0 };
 
 //
 // Calculated bias for mag from MATLAB in uTeslas.
@@ -227,8 +209,13 @@ int16_t g_MagBias[3] = { 0 }; //{ 23.2604390452978, 4.40368720486817, 41.9678519
 float g_fGyroData[3];
 
 //
+// Global storage for accel data.
+float g_fAccelData[3];
+
+//
 // Used as global storage for the raw mag data.
 float g_fMagData[3];
+
 //
 // Used to indicate if the IMU is working, by blinking LED 1.
 bool g_LED1On = false;
@@ -243,6 +230,45 @@ bool g_loopCount = false;
 // 9.81 m/s^2 by the LSB/g / 2. e.g. 9.81 / 8192 = 0.00119750976
 float g_Accel2GFactor = 0.00119750976;
 
+//
+// In this block, input the calibration values from IMU_Calibration.m
+// Abby's attempt at adding scale factors and misalignment terms to calibration of gyro and accel data.
+// Gyro Misalignment and Scale Factor terms are input from IMU_Calibration.m
+float Mgxy = 0;
+float Mgxz = 0;
+float Mgyx = 0;
+float Mgyz = 0;
+float Mgzx = 0;
+float Mgzy = 0;
+float Sgx = 0;
+float Sgy = 0;
+float Sgz = 0;
+
+float g_GyroBias[3] = { 0 };
+
+// Common Denominator for gyro.
+float GyroDenominator;
+
+//
+// Same attempt, but with the accelerometer calibration.
+// Accel Misalignment and Scale Factor terms are input from IMU_Calibration.m
+float Maxy = 0;
+float Maxz = 0;
+float Mayx = 0;
+float Mayz = 0;
+float Mazx = 0;
+float Mazy = 0;
+float Sax = 0;
+float Say = 0;
+float Saz = 0;
+
+float AccelDenominator;
+
+float g_AccelBias[3] = { 0 };
+
+//
+// Variable to track the frequency of packet sends to GS.
+int32_t g_RadioCount = 0;
 
 //*****************************************************************************
 //
@@ -255,7 +281,6 @@ int main(void) {
 	int index, j;
 	int32_t ui32Sum[3] = { 0 };
 	int16_t bias[3][50] = { 0 };
-	uint32_t speed = 0;
 
 	//
 	// Enable lazy stacking for interrupt handlers.  This allows floating-point
@@ -273,6 +298,14 @@ int main(void) {
 	g_SysClockSpeed = SysCtlClockFreqSet(SYSCTL_USE_OSC | SYSCTL_OSC_MAIN |
 			SYSCTL_XTAL_16MHZ, 16000000);
 #endif
+
+	//
+	// Calculate the divisor for the accel and gyro.
+	GyroDenominator = (Sgx+Sgy+Sgz-Mgxy*Mgyx-Mgxz*Mgzx-Mgyz*Mgzy+Sgx*Sgy+Sgx*Sgz+Sgy*Sgz
+	        +Mgxy*Mgyz*Mgzx+Mgxz*Mgyx*Mgzy-Mgxy*Mgyx*Sgz-Mgxz*Mgzx*Sgy-Mgyz*Mgzy*Sgx+Sgx*Sgy*Sgz) + 1;
+
+	AccelDenominator = Sax+Say+Saz-Maxy*Mayx-Maxz*Mazx-Mayz*Mazy+Sax*Say+Sax*Saz+Say*Saz
+            +Maxy*Mayz*Mazx+Maxz*Mayx*Mazy-Maxy*Mayx*Saz-Maxz*Mazx*Say-Mayz*Mazy*Sax+Sax*Say*Saz + 1;
 
 	//
 	// Disable interrupts during initialization period.
@@ -305,13 +338,13 @@ int main(void) {
 	InitRadio(g_SysClockSpeed);
 #endif
 
-
-
 	//
 	// Initialize the BMI160 if enabled.
 #if IMU_ACTIVATED
 	InitIMU(g_SysClockSpeed, g_offsetData);
 
+	//
+	// Calculate the gyro bias.
 	while (numCalcs < 50) {
 		if (g_IMUDataFlag) {
 			uint8_t status;
@@ -349,7 +382,7 @@ int main(void) {
 			ui32Sum[j] += bias[j][index];
 
 	for (index = 0; index < 3; index++)
-		g_GyroBias[index] = ui32Sum[index] / numCalcs;
+	    g_GyroCalBias[index] = ui32Sum[index] / numCalcs;
 #endif
 
 	//
@@ -359,20 +392,6 @@ int main(void) {
 	sStatus.bPayDeployed = false;
 	sStatus.bRadioConnected = false;
 	sStatus.bTargetSet = false;
-
-	//
-	// Initialize the throttle of the system.
-	sThrottle.fAirMtr1Throttle = g_ui32ZeroThrottle;
-	sThrottle.fAirMtr2Throttle = g_ui32ZeroThrottle;
-	sThrottle.fAirMtr3Throttle = g_ui32ZeroThrottle;
-	sThrottle.fAirMtr4Throttle = g_ui32ZeroThrottle;
-#if !APOPHIS
-	sThrottle.fAirMtr5Throttle = g_ui32ZeroThrottle;
-	sThrottle.fAirMtr6Throttle = g_ui32ZeroThrottle;
-#endif
-
-	sThrottle.fGndMtrRWThrottle = 0.0f;
-	sThrottle.fGndMtrLWThrottle = 0.0f;
 
 	//
 	// Set the magic packets.
@@ -431,23 +450,13 @@ int main(void) {
 		if (g_ConsoleFlag)
 			Menu(g_CharConsole);
 
-
 		//
 		// Check if data from the radio is ready.
-		if (g_RadioFlag)
-			ProcessRadio();
+	//	if (g_RadioFlag)
+	//		ProcessRadio();
 
-		//
-		// Check if ADC is finished.
-		if (g_ADCFlag)
-			ProcessADC();
-
-		//
-		// Check if accel or gyro data is ready.
 		if (g_IMUDataFlag)
-			ProcessIMUData();
-
-		
+		    ProcessIMUData();
 	}
 	//
 	// Program ending. Do any clean up that's needed.
@@ -595,8 +604,6 @@ void RadioIntHandler(void) {
 	}
 }
 
-
-
 //*****************************************************************************
 //
 // Interrupt handler for the BMI160 sensor unit.
@@ -618,11 +625,9 @@ void BMI160IntHandler(void) {
 	if (ui32Status == BOOST_GPIO_INT) {
 		//
 		// IMU data is ready.
-		g_IMUDataFlag = true;
+	    g_IMUDataFlag = true;
 	}
 }
-
-
 
 //*****************************************************************************
 //
@@ -668,8 +673,8 @@ void DCMUpdateTimer(void) {
 	if (g_bDCMStarted == 0) {
 		//
 		// Start the DCM.
-		CompDCMAccelUpdate(&g_sCompDCMInst, g_Pack.pack.accelX,
-				g_Pack.pack.accelY, g_Pack.pack.accelZ);
+		CompDCMAccelUpdate(&g_sCompDCMInst, g_fAccelData[0],
+		                   g_fAccelData[1], g_fAccelData[2]);
 
 		CompDCMGyroUpdate(&g_sCompDCMInst, g_fGyroData[0], g_fGyroData[1],
 				g_fGyroData[2]);
@@ -713,7 +718,6 @@ void DCMUpdateTimer(void) {
 	if (sStatus.fYaw < 0)
 		sStatus.fYaw += 360.0f;
 }
-
 
 /*
  * Other functions used by main.
@@ -867,14 +871,12 @@ void Menu(char charReceived) {
 		UARTprintf("Q - Quit this program.\r\n");
 		break;
 	}
-	
+    }
 
 	//
 	// Reset the flag.
 	g_ConsoleFlag = false;
 }
-
-
 
 //*****************************************************************************
 //
@@ -916,7 +918,7 @@ void ProcessRadio(void) {
 			if ((g_sRxPack.sControlPacket.payloadRelease == 1)
 					&& (!sStatus.bPayDeploying)) {
 				sStatus.bPayDeploying = true;
-				ActivateSolenoids();
+				    //ActivateSolenoids();
 			}
 
 		break;
@@ -945,32 +947,6 @@ void ProcessRadio(void) {
 
 //*****************************************************************************
 //
-// This function will evaluate the data received in the ADC.
-//
-//*****************************************************************************
-void ProcessADC(void) {
-	uint32_t ADCData[8];
-
-	//
-	// Get the data.
-	ADCSequenceDataGet(SP_ADC, 0, ADCData);
-
-	//
-	// Print out the data to the console.
-	UARTprintf("SP1 = %d\r\n", ADCData[0]);
-	UARTprintf("SP2 = %d\r\n", ADCData[1]);
-	UARTprintf("SP3 = %d\r\n", ADCData[2]);
-	UARTprintf("SP4 = %d\r\n", ADCData[3]);
-	UARTprintf("SP5 = %d\r\n", ADCData[4]);
-
-	//
-	// Reset the flag.
-	g_ADCFlag = false;
-}
-
-
-//*****************************************************************************
-//
 // This function will send a packet to the ground station, if the radio is
 // connected, it will be called by Timer 0 - Timer A at the rate specified.
 //
@@ -988,7 +964,23 @@ void SendPacket(void) {
 	// Clear the interrupt.
 	TimerIntClear(RADIO_TIMER, ui32Status);
 
+#if DEBUG
+    g_RadioCount++;
+
+	if (g_PrintFlag)
+	{
+	    UARTprintf("Sending at %d Hz\r\n", g_RadioCount);
+	    g_RadioCount = 0;
+	}
+#endif
+
 	if (sStatus.bRadioConnected) {
+
+        //
+        // Assign these values to the
+        g_Pack.pack.accelX = g_fAccelData[0];
+        g_Pack.pack.accelY = g_fAccelData[1];
+        g_Pack.pack.accelZ = g_fAccelData[2];
 		g_Pack.pack.velX = g_fGyroData[0];
 		g_Pack.pack.velY = g_fGyroData[1];
 		g_Pack.pack.velZ = g_fGyroData[2];
@@ -1057,11 +1049,11 @@ void ProcessIMUData(void) {
 	I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_STATUS, 1, &status);
 
 	//
-	// Check what status returned.
-	if ((status & 0xE0) == (BMI160_ACC_RDY | BMI160_GYR_RDY | BMI160_MAG_RDY)) {
+	// Check if the magnetometer data is ready.
+	if ((status & 0x20) == (BMI160_MAG_RDY)) {
 		//
 		// Then get the data for both the accel, gyro and mag
-		I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_MAG_X, 20, IMUData);
+		I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_MAG_X, 8, IMUData);
 
 		//
 		// Get the mag data.
@@ -1079,115 +1071,6 @@ void ProcessIMUData(void) {
 		g_fMagData[1] = ((i8MagData[1] / g_fMagLSB) - g_MagBias[1]) / 1e6;
 		g_fMagData[2] = ((i8MagData[2] / g_fMagLSB) - g_MagBias[2]) / 1e6;
 
-		//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		// 
-		// In this block, input the calibration values from IMU_Calibration.m
-		/* Abby's attempt at adding scale factors and misalignment terms to calibration of gyro and accel data. 
-		/* We will have to duplicate this for the else if that follows.
-		 * 
-		/* Gyro Misalignment and Scale Factor terms are input from IMU_Calibration.m
-		 * Mgxy = (insertMgxy here)
-		 * Mgxz = (insertMgxz here)
-		 * Mgyx = (insertMgyx here)
-		 * Mgyz = (insertMgyz here)
-		 * Mgzx = (insertMgzx here)
-		 * Mgzy = (insertMgzy here)
-		 * Sgx = (insert Sgx here)
-		 * Sgy = (insert Sgy here) 
-		 * Sgz = (insert Sgz here)
-		 
-		/* Common Denominator:
-		 * DivideMe = Sgx+Sgy+Sgz-Mgxy*Mgyx-Mgxz*Mgzx-Mgyz*Mgzy+Sgx*Sgy+Sgx*Sgz+Sgy*Sgz
-		 		+Mgxy*Mgyz*Mgzx+Mgxz*Mgyx*Mgzy-Mgxy*Mgyx*Sgz-Mgxz*Mgzx*Sgy-Mgyz*Mgzy*Sgx+Sgx*Sgy*Sgz +1;
-		 		
-		 * i16GyroData[0] = (-((((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8])- g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz)+
-		 		((((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8])- g_GyroBias[0]) * (Sgy+Sgz-Mgyz*Mgzy+Sgy*Sgz+1)) -
-				((((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8])- g_GyroBias[0]) * (Mgxz-Mgxy*Mgyz+Mgxz*Sgy))) / DivideMe;
-		 * i16GyroData[1] = (-((((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10])- g_GyroBias[1]) * (Mgyx-Mgyz*Mgzx+Mgyx*Sgz)+
-		 		((((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10])- g_GyroBias[1]) * (Sgx+Sgz-Mgxz*Mgzx+Sgx*Sgz+1)) -
-				((((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10])- g_GyroBias[1]) * (Mgyz-Mgxz*Mgyx+Mgyz*Sgx))) / DivideMe;
-		 * i16GyroData[1] = (-((((int16_t) IMUData[13] << 8) + (int8_t) IMUData[12])- g_GyroBias[2]) * (Mgzx-Mgyx*Mgzy+Mgzx*Sgy)+
-		 		((((int16_t) IMUData[13] << 8) + (int8_t) IMUData[12])- g_GyroBias[2]) * (Sgx+Sgy-Mgxy*Mgyx+Sgx*Sgy+1)) -
-				((((int16_t) IMUData[13] << 8) + (int8_t) IMUData[12])- g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx))) / DivideMe;		
-		*/
-		
-		//
-		// Set the gyro data to the global variables.
-		i16GyroData[0] = (((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8])
-				- g_GyroBias[0];
-		i16GyroData[1] = (((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10])
-				- g_GyroBias[1];
-		i16GyroData[2] = (((int16_t) IMUData[13] << 8) + (int8_t) IMUData[12])
-				- g_GyroBias[2];
-
-		//
-		// Convert data to float.
-		g_fGyroData[0] = ((float) (i16GyroData[0])) / g_fGyroLSB;
-		g_fGyroData[1] = ((float) (i16GyroData[1])) / g_fGyroLSB;
-		g_fGyroData[2] = ((float) (i16GyroData[2])) / g_fGyroLSB;
-		
-		//
-		/* Same attempt, but with the accelerometer calibration.
-		/* Accel Misalignment and Scale Factor terms are input from IMU_Calibration.m
-		 * Maxy = (insertMaxy here)
-		 * Maxz = (insertMaxz here)
-		 * Mayx = (insertMayx here)
-		 * Mayz = (insertMayz here)
-		 * Mazx = (insertMazx here)
-		 * Mazy = (insertMazy here)
-		 * Sax = (insert Sax here)
-		 * Say = (insert Say here) 
-		 * Saz = (insert Saz here)
-		/* Accel bias terms go here
-		 * AccelBiasX = ();
-		 * AccelBiasY = ();
-		 * AccelBiasZ = ();
-		 
-		 /* Common Denominator:
-		 * DivideMe = Sax+Say+Saz-Maxy*Mayx-Maxz*Mazx-Mayz*Mazy+Sax*Say+Sax*Saz+Say*Saz
-		 		+Maxy*Mayz*Mazx+Maxz*Mayx*Mazy-Maxy*Mayx*Saz-Maxz*Mazx*Say-Mayz*Mazy*Sax+Sax*Say*Saz +1;
-		 		
-		 * i16AccelData[0] = (-((((int16_t) IMUData[15] << 8) + (int8_t) IMUData[14])- AccelBiasX) * (Maxy-Maxz*Mazy+Maxy*Saz)+
-		 		((((int16_t) IMUData[15] << 8) + (int8_t) IMUData[14])- AccelBiasX) * (Say+Saz-Mayz*Mazy+Say*Saz+1)) -
-				((((int16_t) IMUData[15] << 8) + (int8_t) IMUData[14])- AccelBiasX) * (Maxz-Maxy*Mayz+Maxz*Say))) / DivideMe;
-		 * i16AccelData[1] = (-((((int16_t) IMUData[17] << 8) + (int8_t) IMUData[16])- AccelBiasY) * (Mayx-Mayz*Mazx+Mayx*Saz)+
-		 		((((int16_t) IMUData[17] << 8) + (int8_t) IMUData[16])- AccelBiasY) * (Sax+Saz-Maxz*Mazx+Sax*Saz+1)) -
-				((((int16_t) IMUData[17] << 8) + (int8_t) IMUData[16])- AccelBiasY) * (Mayz-Maxz*Mayx+Mayz*Sax))) / DivideMe;
-		 * i16AccelData[1] = (-((((int16_t) IMUData[19] << 8) + (int8_t) IMUData[18])- AccelBiasZ) * (Mazx-Mayx*Mazy+Mazx*Say)+
-		 		((((int16_t) IMUData[19] << 8) + (int8_t) IMUData[18])- AccelBiasZ) * (Sax+Say-Maxy*Mayx+Sax*Say+1)) -
-				((((int16_t) IMUData[19] << 8) + (int8_t) IMUData[18])- AccelBiasZ) * (Mazy-Maxy*Mazx+Mazy*Sax))) / DivideMe;		
-		*/
-		//
-		// Set the accelerometer data.
-		i16AccelData[0] = (((int16_t) IMUData[15] << 8) + (int8_t) IMUData[14]);
-		i16AccelData[1] = (((int16_t) IMUData[17] << 8) + (int8_t) IMUData[16]);
-		i16AccelData[2] = (((int16_t) IMUData[19] << 8) + (int8_t) IMUData[18]);
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		//
-		// Compute the accel data into floating point values.
-		g_Pack.pack.accelX = ((float) i16AccelData[0]) / g_accelLSBg;
-		g_Pack.pack.accelY = ((float) i16AccelData[1]) / g_accelLSBg;
-		g_Pack.pack.accelZ = ((float) i16AccelData[2]) / g_accelLSBg;
-
-		//
-		// Loop counter print once per second.
-		if (g_PrintRawBMIData && g_loopCount) {
-			UARTprintf("Accelx = %d\r\nAccely = %d\r\n", i16AccelData[0],
-					i16AccelData[1]);
-			UARTprintf("Accelz = %d\r\n", i16AccelData[2]);
-			UARTprintf("Gyrox = %d\r\nGyroy = %d\r\n", i16GyroData[0],
-					i16GyroData[1]);
-			UARTprintf("Gyroz = %d\r\n", i16GyroData[2]);
-
-			UARTprintf("Magx = %d\r\nMagy = %d\r\n", i8MagData[0],
-					i8MagData[1]);
-			UARTprintf("Magz = %d\r\n", i8MagData[2]);
-
-			//
-			// Reset loop count.
-			g_loopCount = false;
-		}
-
 		//
 		// Blink the LED 1 to indicate sensor is working.
 		if (g_LED1On) {
@@ -1198,7 +1081,10 @@ void ProcessIMUData(void) {
 			g_LED1On = true;
 		}
 	}
-	else if ((status & 0xC0) == (BMI160_ACC_RDY | BMI160_GYR_RDY)) { // Just update the accel and gyro.
+
+	//
+	// Check if the accel and gyro data are ready.
+	if ((status & 0xC0) == (BMI160_ACC_RDY | BMI160_GYR_RDY)) {
 		//
 		// Then get the data for both the accel, gyro and mag
 		I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_GYRO_X, 12, IMUData);
@@ -1206,17 +1092,33 @@ void ProcessIMUData(void) {
 		//
 		// Set the gyro data to the global variables.
 		i16GyroData[0] = (((int16_t) IMUData[1] << 8) + (int8_t) IMUData[0])
-				- g_GyroBias[0];
+				- g_GyroCalBias[0];
 		i16GyroData[1] = (((int16_t) IMUData[3] << 8) + (int8_t) IMUData[2])
-				- g_GyroBias[1];
+				- g_GyroCalBias[1];
 		i16GyroData[2] = (((int16_t) IMUData[5] << 8) + (int8_t) IMUData[4])
-				- g_GyroBias[2];
+				- g_GyroCalBias[2];
 
 		//
 		// Convert data to float.
 		g_fGyroData[0] = ((float) (i16GyroData[0])) / g_fGyroLSB;
 		g_fGyroData[1] = ((float) (i16GyroData[1])) / g_fGyroLSB;
 		g_fGyroData[2] = ((float) (i16GyroData[2])) / g_fGyroLSB;
+
+////////////////////// THE GYRO MATHS ///////////////////////////////////////////////////////////
+		g_fGyroData[0] = (-((g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz)+
+	                ((g_fGyroData[0] - g_GyroBias[0]) * (Sgy+Sgz-Mgyz*Mgzy+Sgy*Sgz+1)) -
+	                ((g_fGyroData[0] - g_GyroBias[0]) * (Mgxz-Mgxy*Mgyz+Mgxz*Sgy)))) / GyroDenominator;
+
+
+        g_fGyroData[1] = (-((g_fGyroData[1] - g_GyroBias[1]) * (Mgyx-Mgyz*Mgzx+Mgyx*Sgz)+
+	                ((g_fGyroData[1] - g_GyroBias[1]) * (Sgx+Sgz-Mgxz*Mgzx+Sgx*Sgz+1)) -
+	                ((g_fGyroData[1] - g_GyroBias[1]) * (Mgyz-Mgxz*Mgyx+Mgyz*Sgx)))) / GyroDenominator;
+
+
+        g_fGyroData[2] = (-(( g_fGyroData[2] - g_GyroBias[2]) * (Mgzx-Mgyx*Mgzy+Mgzx*Sgy)+
+	                (( g_fGyroData[2] - g_GyroBias[2]) * (Sgx+Sgy-Mgxy*Mgyx+Sgx*Sgy+1)) -
+	                (( g_fGyroData[2] - g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx)))) / GyroDenominator;
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		//
 		// Set the accelerometer data.
@@ -1226,10 +1128,43 @@ void ProcessIMUData(void) {
 
 		//
 		// Compute the accel data into floating point values.
-		g_Pack.pack.accelX = ((float) i16AccelData[0]) / g_accelLSBg;
-		g_Pack.pack.accelY = ((float) i16AccelData[1]) / g_accelLSBg;
-		g_Pack.pack.accelZ = ((float) i16AccelData[2]) / g_accelLSBg;
+	    g_fAccelData[0] = ((float) i16AccelData[0]) / g_accelLSBg;
+	    g_fAccelData[1] = ((float) i16AccelData[1]) / g_accelLSBg;
+	    g_fAccelData[2] = ((float) i16AccelData[2]) / g_accelLSBg;
+
+////////////////////// THE ACCEL MATHS /////////////////////////////////////////////////////////////
+         g_fAccelData[0] = (-(g_fAccelData[0] - g_AccelBias[0]) * (Maxy-Maxz*Mazy+Maxy*Saz) +
+                ((g_fAccelData[0] - g_AccelBias[0]) * (Say+Saz-Mayz*Mazy+Say*Saz+1)) -
+                ((g_fAccelData[0] - g_AccelBias[0]) * (Maxz-Maxy*Mayz+Maxz*Say))) / AccelDenominator;
+
+         g_fAccelData[1] = (-(g_fAccelData[1] - g_AccelBias[1]) * (Mayx-Mayz*Mazx+Mayx*Saz) +
+                ((g_fAccelData[1] - g_AccelBias[1]) * (Sax+Saz-Maxz*Mazx+Sax*Saz+1)) -
+                ((g_fAccelData[1] - g_AccelBias[1]) * (Mayz-Maxz*Mayx+Mayz*Sax))) / AccelDenominator;
+
+         g_fAccelData[2] = (-(g_fAccelData[2] - g_AccelBias[2]) * (Mazx-Mayx*Mazy+Mazx*Say) +
+                ((g_fAccelData[2] - g_AccelBias[2]) * (Sax+Say-Maxy*Mayx+Sax*Say+1)) -
+                ((g_fAccelData[2] - g_AccelBias[2]) * (Mazy-Maxy*Mazx+Mazy*Sax))) / AccelDenominator;
+//////////////////////////////////////////////////////////////////////////////////////////////////
 	}
+
+    //
+    // Loop counter print once per second.
+    if (g_PrintRawBMIData && g_loopCount)
+    {
+        UARTprintf("Accelx = %d\r\nAccely = %d\r\n", i16AccelData[0],
+                   i16AccelData[1]);
+        UARTprintf("Accelz = %d\r\n", i16AccelData[2]);
+        UARTprintf("Gyrox = %d\r\nGyroy = %d\r\n", i16GyroData[0],
+                   i16GyroData[1]);
+        UARTprintf("Gyroz = %d\r\n", i16GyroData[2]);
+
+        UARTprintf("Magx = %d\r\nMagy = %d\r\n", i8MagData[0], i8MagData[1]);
+        UARTprintf("Magz = %d\r\n", i8MagData[2]);
+
+        //
+        // Reset loop count.
+        g_loopCount = false;
+    }
 
 	//
 	// Enable the DCM if it has not been started yet.
@@ -1239,9 +1174,8 @@ void ProcessIMUData(void) {
 	//
 	// Reset the flag
 	g_IMUDataFlag = false;
-}
 
-//
-// Reset printing loop count for debugging.
-	g_PrintFlag = false;
+	//
+	// Reset printing loop count for debugging.
+    g_PrintFlag = false;
 }
