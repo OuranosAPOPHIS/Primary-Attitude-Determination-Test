@@ -234,17 +234,19 @@ float g_Accel2GFactor = 0.00119750976;
 // In this block, input the calibration values from IMU_Calibration.m
 // Abby's attempt at adding scale factors and misalignment terms to calibration of gyro and accel data.
 // Gyro Misalignment and Scale Factor terms are input from IMU_Calibration.m
-float Mgxy = 0;
-float Mgxz = 0;
-float Mgyx = 0;
-float Mgyz = 0;
-float Mgzx = 0;
-float Mgzy = 0;
-float Sgx = 0;
-float Sgy = 0;
-float Sgz = 0;
+float Mgxy = 0.7394;
+float Mgxz = 0.8627;
+float Mgyx = 0.0218;
+float Mgyz = -0.0699;
+float Mgzx = 1.1544;
+float Mgzy = -0.0699;
+float Sgx = -0.8161;
+float Sgy = -0.4166;
+float Sgz =  0.7518;
 
-float g_GyroBias[3] = { 0 };
+float g_GyroBias[3] = { -8.3994,
+                        11.0671,
+                        -7.7591 };
 
 // Common Denominator for gyro.
 float GyroDenominator;
@@ -252,19 +254,21 @@ float GyroDenominator;
 //
 // Same attempt, but with the accelerometer calibration.
 // Accel Misalignment and Scale Factor terms are input from IMU_Calibration.m
-float Maxy = 0;
-float Maxz = 0;
-float Mayx = 0;
-float Mayz = 0;
-float Mazx = 0;
-float Mazy = 0;
-float Sax = 0;
-float Say = 0;
-float Saz = 0;
+float Maxy = -0.8973;
+float Maxz = 0.0016;
+float Mayx = 0.0010;
+float Mayz = -0.0021;
+float Mazx = -0.8980;
+float Mazy = -0.0021;
+float Sax = 0.0006;
+float Say = -0.0007;
+float Saz = -0.8956;
 
 float AccelDenominator;
 
-float g_AccelBias[3] = { 0 };
+float g_AccelBias[3] = {-0.0431,
+                         0.0296,
+                        -0.0399 };
 
 //
 // Variable to track the frequency of packet sends to GS.
@@ -1105,19 +1109,19 @@ void ProcessIMUData(void) {
 		g_fGyroData[2] = ((float) (i16GyroData[2])) / g_fGyroLSB;
 
 ////////////////////// THE GYRO MATHS ///////////////////////////////////////////////////////////
-		g_fGyroData[0] = (-((g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz)+
+		g_fGyroData[0] = (-(g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz) +
 	                ((g_fGyroData[0] - g_GyroBias[0]) * (Sgy+Sgz-Mgyz*Mgzy+Sgy*Sgz+1)) -
-	                ((g_fGyroData[0] - g_GyroBias[0]) * (Mgxz-Mgxy*Mgyz+Mgxz*Sgy)))) / GyroDenominator;
+	                ((g_fGyroData[0] - g_GyroBias[0]) * (Mgxz-Mgxy*Mgyz+Mgxz*Sgy))) / GyroDenominator;
 
 
-        g_fGyroData[1] = (-((g_fGyroData[1] - g_GyroBias[1]) * (Mgyx-Mgyz*Mgzx+Mgyx*Sgz)+
+        g_fGyroData[1] = (-(g_fGyroData[1] - g_GyroBias[1]) * (Mgyx-Mgyz*Mgzx+Mgyx*Sgz)+
 	                ((g_fGyroData[1] - g_GyroBias[1]) * (Sgx+Sgz-Mgxz*Mgzx+Sgx*Sgz+1)) -
-	                ((g_fGyroData[1] - g_GyroBias[1]) * (Mgyz-Mgxz*Mgyx+Mgyz*Sgx)))) / GyroDenominator;
+	                ((g_fGyroData[1] - g_GyroBias[1]) * (Mgyz-Mgxz*Mgyx+Mgyz*Sgx))) / GyroDenominator;
 
 
-        g_fGyroData[2] = (-(( g_fGyroData[2] - g_GyroBias[2]) * (Mgzx-Mgyx*Mgzy+Mgzx*Sgy)+
+        g_fGyroData[2] = (-( g_fGyroData[2] - g_GyroBias[2]) * (Mgzx-Mgyx*Mgzy+Mgzx*Sgy)+
 	                (( g_fGyroData[2] - g_GyroBias[2]) * (Sgx+Sgy-Mgxy*Mgyx+Sgx*Sgy+1)) -
-	                (( g_fGyroData[2] - g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx)))) / GyroDenominator;
+	                (( g_fGyroData[2] - g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx))) / GyroDenominator;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		//
