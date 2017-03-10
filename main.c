@@ -1039,7 +1039,7 @@ void SendPacket(void) {
 
 //*****************************************************************************
 //
-// This function will retrieve the accel or gyro data from the BMI160.
+// This function will retrieve the accel, gyro and mag data from the BMI160.
 //
 //*****************************************************************************
 void ProcessIMUData(void) {
@@ -1048,7 +1048,6 @@ void ProcessIMUData(void) {
 	int16_t i16AccelData[3];
 	int16_t i16GyroData[3];
 	int16_t i8MagData[3];
-	uint16_t ui8MagRHall;
 
 	//
 	// First check the status for which data is ready.
@@ -1059,7 +1058,7 @@ void ProcessIMUData(void) {
 	if ((status & 0x20) == (BMI160_MAG_RDY)) {
 		//
 		// Then get the data for both the accel, gyro and mag
-		I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_MAG_X, 8, IMUData);
+		I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_MAG_X, 6, IMUData);
 
 		//
 		// Get the mag data.
@@ -1069,7 +1068,6 @@ void ProcessIMUData(void) {
 				+ (int8_t) (IMUData[2] & 0x1f));
 		i8MagData[2] = (((int16_t) IMUData[5] << 8)
 				+ (int8_t) (IMUData[4] & 0x7f));
-		ui8MagRHall = (((uint16_t) IMUData[7] << 8) + (IMUData[6] & 0x3f));
 
 		//
 		// Convert to float for DCM and convert to teslas.
@@ -1111,7 +1109,7 @@ void ProcessIMUData(void) {
 		g_fGyroData[2] = ((float) (i16GyroData[2])) / g_fGyroLSB;
 
 ////////////////////// THE GYRO MATHS ///////////////////////////////////////////////////////////
-		g_fGyroData[0] = (-(g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz) +
+	/*	g_fGyroData[0] = (-(g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz) +
 	                ((g_fGyroData[0] - g_GyroBias[0]) * (Sgy+Sgz-Mgyz*Mgzy+Sgy*Sgz+1)) -
 	                ((g_fGyroData[0] - g_GyroBias[0]) * (Mgxz-Mgxy*Mgyz+Mgxz*Sgy))) / GyroDenominator;
 
@@ -1123,7 +1121,7 @@ void ProcessIMUData(void) {
 
         g_fGyroData[2] = (-( g_fGyroData[2] - g_GyroBias[2]) * (Mgzx-Mgyx*Mgzy+Mgzx*Sgy)+
 	                (( g_fGyroData[2] - g_GyroBias[2]) * (Sgx+Sgy-Mgxy*Mgyx+Sgx*Sgy+1)) -
-	                (( g_fGyroData[2] - g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx))) / GyroDenominator;
+	                (( g_fGyroData[2] - g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx))) / GyroDenominator; */
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		//
