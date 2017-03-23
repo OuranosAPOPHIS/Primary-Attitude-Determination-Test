@@ -48,6 +48,11 @@
 #include "sensors/bmi160.h"
 #include "sensors/i2c_driver.h"
 
+
+extern void CustomCompDCMUpdate(tCompDCM *psDCM);
+extern void CustomCompDCMStart(tCompDCM *psDCM);
+
+
 //*****************************************************************************
 //
 // Defines
@@ -699,7 +704,7 @@ void DCMUpdateTimer(void) {
 		CompDCMMagnetoUpdate(&g_sCompDCMInst, g_fMagData[0], g_fMagData[1],
 				g_fMagData[2]);
 
-		CompDCMStart(&g_sCompDCMInst);
+		CustomCompDCMStart(&g_sCompDCMInst);
 
 		g_bDCMStarted = true;
 	} else {
@@ -714,7 +719,7 @@ void DCMUpdateTimer(void) {
 		CompDCMMagnetoUpdate(&g_sCompDCMInst, g_fMagData[0], g_fMagData[1],
 				g_fMagData[2]);
 
-		CompDCMUpdate(&g_sCompDCMInst);
+		CustomCompDCMUpdate(&g_sCompDCMInst);
 	}
 
 	//
@@ -980,16 +985,6 @@ void SendPacket(void) {
 	//
 	// Clear the interrupt.
 	TimerIntClear(RADIO_TIMER, ui32Status);
-
-#if DEBUG
-    g_RadioCount++;
-
-	if (g_PrintFlag)
-	{
-	    UARTprintf("Sending at %d Hz\r\n", g_RadioCount);
-	    g_RadioCount = 0;
-	}
-#endif
 
 	if (sStatus.bRadioConnected) {
 

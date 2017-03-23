@@ -18,6 +18,7 @@
 
 #include "bmi160.h"
 #include "i2c_driver.h"
+#include "sensorlib/comp_dcm.h"
 
 #define DEBUG true
 
@@ -362,3 +363,75 @@ void InitBMI160(uint32_t I2C_base, uint8_t AccelRate, uint8_t AccelAccuracy, uin
     UARTprintf("(ERR_REG): 0x%x\n\r", state[0]);
 #endif
 }
+
+//*****************************************************************************
+//
+// This function will initialize the BMI160 Sensor by configuring the
+// accelerometer, gyroscope and magnetometer of the device with the given values.
+//
+// I2C_BASE: Base address of the I2C module.
+// AccelRate: Update rate of the accelerometer.
+// AccelAccuracy: g accuracy of the accelerometer.
+// GyroRate: Update rate of the gyroscope.
+// GyroAccuracy: degrees per second measurement rate of the gyroscope.
+// MagRate: Update rate of the magnetometer.
+//
+// The device expects the following format:
+// DEVICE_ADDRESS ACK REGISTER_ADDRESS ACK DATA STOP
+//
+// Note: The BMI160 can only be written to in one byte chunks.
+// Also, the BMI160 boots up initially in suspend mode for the accel and
+// gyro. In supsend mode, the device cannot receive burst writes.
+//
+//*****************************************************************************
+/*void StartDCM(tCompDCM *psDCM)
+{
+    float pfI[3], pfJ[3], pfK[3];
+
+    //
+    // The magnetometer reading forms the initial I vector, pointing north.
+    //
+    pfI[0] = psDCM->1;
+    pfI[1] = psDCM->0;
+    pfI[2] = psDCM->0;
+
+    //
+    // The accelerometer reading forms the initial K vector, pointing down.
+    //
+    pfK[0] = psDCM->pfAccel[0];
+    pfK[1] = psDCM->pfAccel[1];
+    pfK[2] = psDCM->pfAccel[2];
+
+    //
+    // Compute the initial J vector, which is the cross product of the K and I
+    // vectors.
+    //
+    VectorCrossProduct(pfJ, pfK, pfI);
+
+    //
+    // Recompute the I vector from the cross product of the J and K vectors.
+    // This makes it fully orthogonal, which it wasn't before since magnetic
+    // north points inside the Earth in many places.
+    //
+    VectorCrossProduct(pfI, pfJ, pfK);
+
+    //
+    // Normalize the I, J, and K vectors.
+    //
+    VectorScale(pfI, pfI, 1 / sqrtf(VectorDotProduct(pfI, pfI)));
+    VectorScale(pfJ, pfJ, 1 / sqrtf(VectorDotProduct(pfJ, pfJ)));
+    VectorScale(pfK, pfK, 1 / sqrtf(VectorDotProduct(pfK, pfK)));
+
+    //
+    // Initialize the DCM matrix from the I, J, and K vectors.
+    //
+    psDCM->ppfDCM[0][0] = pfI[0];
+    psDCM->ppfDCM[0][1] = pfI[1];
+    psDCM->ppfDCM[0][2] = pfI[2];
+    psDCM->ppfDCM[1][0] = pfJ[0];
+    psDCM->ppfDCM[1][1] = pfJ[1];
+    psDCM->ppfDCM[1][2] = pfJ[2];
+    psDCM->ppfDCM[2][0] = pfK[0];
+    psDCM->ppfDCM[2][1] = pfK[1];
+    psDCM->ppfDCM[2][2] = pfK[2];
+}*/
