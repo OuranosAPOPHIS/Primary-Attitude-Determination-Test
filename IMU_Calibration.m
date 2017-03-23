@@ -2,8 +2,8 @@
 
 % Import Log File from test. 
 
-test_data1 = csvread('GSDataLog.csv',3,5);
-test_data2 = csvread('GSDataLog2.csv',3,5);
+test_data1 = csvread('GSDataLog(Test1).csv',3,5);
+test_data2 = csvread('GSDataLog2(Test1).csv',3,5);
 
 %% 3-axis accelerometer
 % To calibrate the 3-axis accelerometer, use the 3-axis rotation table to
