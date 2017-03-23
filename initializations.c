@@ -173,8 +173,9 @@ void InitRadio(uint32_t SysClockSpeed) {
 
 	//
 	// Configure the timer for sending radio packets.
+	TimerClockSourceSet(RADIO_TIMER, TIMER_CLOCK_PIOSC);
 	TimerConfigure(RADIO_TIMER, TIMER_CFG_PERIODIC);
-	TimerLoadSet(RADIO_TIMER, TIMER_A, SysClockSpeed / RADIO_TIMER_RATE);
+	TimerLoadSet(RADIO_TIMER, TIMER_A, 16000000 / RADIO_TIMER_RATE);
 
 	//
 	// Configure the interrupts for the timer.

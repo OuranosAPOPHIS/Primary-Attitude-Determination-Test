@@ -481,7 +481,7 @@ CompDCMMatrixGet(tCompDCM *psDCM, float ppfDCM[3][3])
 //!
 //! This function computes the Euler angles that are represented by the DCM
 //! attitude estimation matrix.  If any of the Euler angles is not required,
-//! the corresponding parameter can be \b NULL.
+//! the corresponding parameter can be \b NULL. (3 - 2 - 1 Rotation)
 //!
 //! \return None.
 //

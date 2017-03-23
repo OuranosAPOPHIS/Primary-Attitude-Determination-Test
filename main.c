@@ -200,6 +200,8 @@ uint8_t g_offsetData[7] = { 0 };
 
 int16_t g_GyroCalBias[3] = { 0 };
 
+int16_t g_AccelCalBias[3] = { 0 };
+
 //
 // Calculated bias for mag from MATLAB in uTeslas.
 int16_t g_MagBias[3] = { 0 }; //{ 23.2604390452978, 4.40368720486817, 41.9678519105233 };
@@ -234,20 +236,20 @@ float g_Accel2GFactor = 0.00119750976;
 // In this block, input the calibration values from IMU_Calibration.m
 // Abby's attempt at adding scale factors and misalignment terms to calibration of gyro and accel data.
 // Gyro Misalignment and Scale Factor terms are input from IMU_Calibration.m
-float Mgxy = 0.8627;
-float Mgxz = 0.0218;
-float Mgyx = -0.0699;
-float Mgyz = -0.0699;
-float Mgzx = -0.8161;
-float Mgzy = -0.4166;
+float Mgxy = 0.0;
+float Mgxz = 0.0;
+float Mgyx = 0.0;
+float Mgyz = 0.0;
+float Mgzx = 0.0;
+float Mgzy = 0.0;
 
-float Sgx = 0.7394;
-float Sgy = 1.1544;
-float Sgz =  0.7518;
+float Sgx = 0.0;
+float Sgy = 0.0;
+float Sgz =  0.0;
 
-float g_GyroBias[3] = { -8.3994,
-                        11.0671,
-                        -7.7591 };
+float g_GyroBias[3] = { 0.0,
+                        0.0,
+                        0.0 };
 
 // Common Denominator for gyro.
 float GyroDenominator;
@@ -255,22 +257,22 @@ float GyroDenominator;
 //
 // Same attempt, but with the accelerometer calibration.
 // Accel Misalignment and Scale Factor terms are input from IMU_Calibration.m
-float Maxy = 0.0016;
-float Maxz = 0.0010;
-float Mayx = -0.0021;
-float Mayz = -0.0021;
-float Mazx = 0.0006;
-float Mazy = -0.0007;
+float Maxy = 0.0;
+float Maxz = 0.0;
+float Mayx = 0.0;
+float Mayz = 0.0;
+float Mazx = 0.0;
+float Mazy = 0.0;
 
-float Sax = -0.8973;
-float Say = -0.8980;
-float Saz = -0.8956;
+float Sax = 0.0;
+float Say = 0.0;
+float Saz = 0.0;
 
 float AccelDenominator;
 
-float g_AccelBias[3] = {-0.0431,
-                         0.0296,
-                        -0.0399 };
+float g_AccelBias[3] = {0.0,
+                         0.0,
+                        0.0 };
 
 //
 // Variable to track the frequency of packet sends to GS.
@@ -285,8 +287,8 @@ int main(void) {
 
 	int numCalcs = 0;
 	int index, j;
-	int32_t ui32Sum[3] = { 0 };
-	int16_t bias[3][50] = { 0 };
+	int32_t ui32Sum[6] = { 0 };
+	int16_t bias[6][50] = { 0 };
 
 	//
 	// Enable lazy stacking for interrupt handlers.  This allows floating-point
@@ -354,7 +356,7 @@ int main(void) {
 	while (numCalcs < 50) {
 		if (g_IMUDataFlag) {
 			uint8_t status;
-			uint8_t IMUData[6] = { 0 };
+			uint8_t IMUData[12] = { 0 };
 
 			//
 			// First check the status for which data is ready.
@@ -362,10 +364,10 @@ int main(void) {
 
 			//
 			// Check what status returned.
-			if ((status & 0x40) == (BMI160_GYR_RDY)) {
+			if ((status & 0xC0) == (BMI160_GYR_RDY | BMI160_ACC_RDY)) {
 				//
 				// Then get the data for both the accel and gyro.
-				I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_GYRO_X, 6, IMUData);
+				I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_GYRO_X, 12, IMUData);
 
 				//
 				// Capture the gyro data.
@@ -375,6 +377,12 @@ int main(void) {
 						+ (int8_t) IMUData[2]);
 				bias[2][numCalcs] = (((int16_t) IMUData[5] << 8)
 						+ (int8_t) IMUData[4]);
+				bias[3][numCalcs] = (((int16_t) IMUData[7] << 8)
+						+ (int8_t) IMUData[6]);
+				bias[4][numCalcs] = (((int16_t) IMUData[9] << 8)
+						+ (int8_t) IMUData[8]);
+				bias[5][numCalcs] = (((int16_t) IMUData[11] << 8)
+						+ (int8_t) IMUData[10]);
 
 				numCalcs++;
 			}
@@ -384,11 +392,14 @@ int main(void) {
 	//
 	// Calculate the bias.
 	for (index = 0; index < numCalcs; index++)
-		for (j = 0; j < 3; j++)
+		for (j = 0; j < 6; j++)
 			ui32Sum[j] += bias[j][index];
 
 	for (index = 0; index < 3; index++)
 	    g_GyroCalBias[index] = ui32Sum[index] / numCalcs;
+	for (index = 3; index < 6; index++)
+		g_AccelCalBias[index - 3] = ui32Sum[index] / numCalcs;
+	g_AccelCalBias[2] -= 16384;
 #endif
 
 	//
@@ -860,7 +871,7 @@ void Menu(char charReceived) {
 		g_Quit = true;
 		break;
 	}
-	
+
 	case 'B': // Print raw accel, gyro and mag data.
 	{
 		if (g_PrintRawBMIData)
@@ -1049,6 +1060,8 @@ void ProcessIMUData(void) {
 	int16_t i16GyroData[3];
 	int16_t i8MagData[3];
 
+	IntMasterDisable();
+
 	//
 	// First check the status for which data is ready.
 	I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_STATUS, 1, &status);
@@ -1126,9 +1139,12 @@ void ProcessIMUData(void) {
 
 		//
 		// Set the accelerometer data.
-		i16AccelData[0] = (((int16_t) IMUData[7] << 8) + (int8_t) IMUData[6]);
-		i16AccelData[1] = (((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8]);
-		i16AccelData[2] = (((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10]);
+		i16AccelData[0] = (((int16_t) IMUData[7] << 8) + (int8_t) IMUData[6])
+				- g_AccelCalBias[0];
+		i16AccelData[1] = (((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8])
+				- g_AccelCalBias[1];
+		i16AccelData[2] = (((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10])
+				- g_AccelCalBias[2];
 
 		//
 		// Compute the accel data into floating point values.
@@ -1182,4 +1198,6 @@ void ProcessIMUData(void) {
 	//
 	// Reset printing loop count for debugging.
     g_PrintFlag = false;
+
+    IntMasterEnable();
 }
