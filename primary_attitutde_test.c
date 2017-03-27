@@ -59,7 +59,7 @@ extern void CustomCompDCMStart(tCompDCM *psDCM);
 //
 //*****************************************************************************
 
-#define DEBUG true                      ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define DEBUG true
 #define APOPHIS false
 
 #define CONSOLE_ACTIVATED true
@@ -73,8 +73,13 @@ extern void CustomCompDCMStart(tCompDCM *psDCM);
 #define ALTIMETER_ACTIVATED false
 #define AIRMTRS_ACTIVATED false
 
-#define ONEG 16384                    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define SPEEDIS120MHZ true            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define SPEEDIS120MHZ true
+
+//
+// The number of LSB per degree/s for 2000 degrees/s.
+#define GYROLSB 262.4;
+#define ACCELLSB 16384
+
 
 //*****************************************************************************
 //
@@ -186,14 +191,6 @@ bool g_bDCMStarted;
 // Temporary storage for the accel and gyro data received from the BMI160.
 // Each x,y,z value takes up two bytes.
 bool g_IMUDataFlag = false;
-
-//
-// The number of LSB per g for +/- 2g's.
-float g_accelLSBg = 16384;
-
-//
-// The number of LSB per degree/s for 2000 degrees/s.
-float g_fGyroLSB = 16.4;
 
 //
 // Float conversion for mag data.
@@ -401,10 +398,10 @@ int main(void) {
 			ui32Sum[j] += bias[j][index];
 
 	for (index = 0; index < 3; index++)
-	    g_GyroCalBias[index] = ui32Sum[index] / numCalcs;
+	   // g_GyroCalBias[index] = ui32Sum[index] / numCalcs;
 	for (index = 3; index < 6; index++)
 		g_AccelCalBias[index - 3] = ui32Sum[index] / numCalcs;
-	g_AccelCalBias[2] -= 16384;
+	//g_AccelCalBias[2] -= 16384;
 #endif
 
 	//
@@ -1112,9 +1109,9 @@ void ProcessIMUData(void) {
 
 		//
 		// Convert data to float.
-		g_fGyroData[0] = ((float) (i16GyroData[0])) / g_fGyroLSB;
-		g_fGyroData[1] = ((float) (i16GyroData[1])) / g_fGyroLSB;
-		g_fGyroData[2] = ((float) (i16GyroData[2])) / g_fGyroLSB;
+		g_fGyroData[0] = ((float) (i16GyroData[0])) / GYROLSB;
+		g_fGyroData[1] = ((float) (i16GyroData[1])) / GYROLSB;
+		g_fGyroData[2] = ((float) (i16GyroData[2])) / GYROLSB;
 
 ////////////////////// THE GYRO MATHS ///////////////////////////////////////////////////////////
 	/*	g_fGyroData[0] = (-(g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz) +
@@ -1143,9 +1140,9 @@ void ProcessIMUData(void) {
 
 		//
 		// Compute the accel data into floating point values.
-	    g_fAccelData[0] = ((float) i16AccelData[0]) / g_accelLSBg;
-	    g_fAccelData[1] = ((float) i16AccelData[1]) / g_accelLSBg;
-	    g_fAccelData[2] = ((float) i16AccelData[2]) / g_accelLSBg;
+	    g_fAccelData[0] = ((float) i16AccelData[0]) / ACCELLSB;
+	    g_fAccelData[1] = ((float) i16AccelData[1]) / ACCELLSB;
+	    g_fAccelData[2] = ((float) i16AccelData[2]) / ACCELLSB;
 
 ////////////////////// THE ACCEL MATHS /////////////////////////////////////////////////////////////
          g_fAccelData[0] = (-(g_fAccelData[0] - g_AccelBias[0]) * (Maxy-Maxz*Mazy+Maxy*Saz) +

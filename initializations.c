@@ -287,7 +287,7 @@ void InitIMU(uint32_t SysClockSpeed, uint8_t *offsetCompensation) {
 	// +/-2g setting on the accelerometer and 2000 deg/s for the gyro.
 	InitBMI160(BOOST_I2C, BMI160_ACC_100_HZ, BMI160_ACC_RANGE_2G,
 			BMI160_GYR_100_HZ,
-			BMI160_GYR_RATE_2000, BMI160_MAG_31_HZ, offsetCompensation,
+			BMI160_GYR_RATE_125, BMI160_MAG_31_HZ, offsetCompensation,
 			SysClockSpeed);
 
 	//
