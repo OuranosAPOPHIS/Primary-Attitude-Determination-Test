@@ -75,6 +75,7 @@ extern void CustomCompDCMStart(tCompDCM *psDCM);
 
 #define ONEG 16384                    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #define SPEEDIS120MHZ true            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define CALIBRATIONTEST true
 
 //*****************************************************************************
 //
@@ -241,20 +242,20 @@ float g_Accel2GFactor = 0.00119750976;
 // In this block, input the calibration values from IMU_Calibration.m
 // Abby's attempt at adding scale factors and misalignment terms to calibration of gyro and accel data.
 // Gyro Misalignment and Scale Factor terms are input from IMU_Calibration.m
-float Mgxy = 0.0;
-float Mgxz = 0.0;
-float Mgyx = 0.0;
-float Mgyz = 0.0;
-float Mgzx = 0.0;
-float Mgzy = 0.0;
+float Mgxy = -0.002248;
+float Mgxz = 0.012195;
+float Mgyx = -0.012843;
+float Mgyz = 0.029345;
+float Mgzx = -0.127172;
+float Mgzy = -0.029611;
 
-float Sgx = 0.0;
-float Sgy = 0.0;
-float Sgz =  0.0;
+float Sgx = 0.022752;
+float Sgy = -0.011966;
+float Sgz =  -0.016197;
 
-float g_GyroBias[3] = { 0.0,
-                        0.0,
-                        0.0 };
+float g_GyroBias[3] = { -0.915588,
+                         1.518673,
+                        -0.534490} ;
 
 // Common Denominator for gyro.
 float GyroDenominator;
@@ -262,22 +263,22 @@ float GyroDenominator;
 //
 // Same attempt, but with the accelerometer calibration.
 // Accel Misalignment and Scale Factor terms are input from IMU_Calibration.m
-float Maxy = 0.0;
-float Maxz = 0.0;
-float Mayx = 0.0;
-float Mayz = 0.0;
-float Mazx = 0.0;
-float Mazy = 0.0;
+float Maxy = -0.00007;
+float Maxz = 0.005894;
+float Mayx = 0.000820;
+float Mayz = 0.000876;
+float Mazx = 0.002714;
+float Mazy = -0.000808;
 
-float Sax = 0.0;
-float Say = 0.0;
-float Saz = 0.0;
+float Sax = -0.897372;
+float Say = -0.898219;
+float Saz = 0.896963;
 
 float AccelDenominator;
 
-float g_AccelBias[3] = {0.0,
-                         0.0,
-                        0.0 };
+float g_AccelBias[3] = {-0.036072,
+                         0.049469,
+                        -0.030289};
 
 //
 // Variable to track the frequency of packet sends to GS.
@@ -290,10 +291,12 @@ int32_t g_RadioCount = 0;
 //*****************************************************************************
 int main(void) {
 
+#if !CALIBRATIONTEST
 	int numCalcs = 0;
 	int index, j;
-	int32_t ui32Sum[6] = { 0 };
-	int16_t bias[6][50] = { 0 };
+	int32_t ui32Sum[3] = { 0 };
+	int16_t bias[3][50] = { 0 };
+#endif
 
 	//
 	// Enable lazy stacking for interrupt handlers.  This allows floating-point
@@ -356,12 +359,13 @@ int main(void) {
 #if IMU_ACTIVATED
 	InitIMU(g_SysClockSpeed, g_offsetData);
 
+#if !CALIBRATIONTEST
 	//
 	// Calculate the gyro bias.
 	while (numCalcs < 50) {
 		if (g_IMUDataFlag) {
 			uint8_t status;
-			uint8_t IMUData[12] = { 0 };
+			uint8_t IMUData[6] = { 0 };
 
 			//
 			// First check the status for which data is ready.
@@ -372,7 +376,7 @@ int main(void) {
 			if ((status & 0xC0) == (BMI160_GYR_RDY | BMI160_ACC_RDY)) {
 				//
 				// Then get the data for both the accel and gyro.
-				I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_GYRO_X, 12, IMUData);
+				I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_GYRO_X, 6, IMUData);
 
 				//
 				// Capture the gyro data.
@@ -382,12 +386,6 @@ int main(void) {
 						+ (int8_t) IMUData[2]);
 				bias[2][numCalcs] = (((int16_t) IMUData[5] << 8)
 						+ (int8_t) IMUData[4]);
-				bias[3][numCalcs] = (((int16_t) IMUData[7] << 8)
-						+ (int8_t) IMUData[6]);
-				bias[4][numCalcs] = (((int16_t) IMUData[9] << 8)
-						+ (int8_t) IMUData[8]);
-				bias[5][numCalcs] = (((int16_t) IMUData[11] << 8)
-						+ (int8_t) IMUData[10]);
 
 				numCalcs++;
 			}
@@ -397,14 +395,12 @@ int main(void) {
 	//
 	// Calculate the bias.
 	for (index = 0; index < numCalcs; index++)
-		for (j = 0; j < 6; j++)
+		for (j = 0; j < 3; j++)
 			ui32Sum[j] += bias[j][index];
 
 	for (index = 0; index < 3; index++)
 	    g_GyroCalBias[index] = ui32Sum[index] / numCalcs;
-	for (index = 3; index < 6; index++)
-		g_AccelCalBias[index - 3] = ui32Sum[index] / numCalcs;
-	g_AccelCalBias[2] -= 16384;
+#endif
 #endif
 
 	//
@@ -1117,19 +1113,17 @@ void ProcessIMUData(void) {
 		g_fGyroData[2] = ((float) (i16GyroData[2])) / g_fGyroLSB;
 
 ////////////////////// THE GYRO MATHS ///////////////////////////////////////////////////////////
-	/*	g_fGyroData[0] = (-(g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz) +
+		g_fGyroData[0] = (-(g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz) +
 	                ((g_fGyroData[0] - g_GyroBias[0]) * (Sgy+Sgz-Mgyz*Mgzy+Sgy*Sgz+1)) -
 	                ((g_fGyroData[0] - g_GyroBias[0]) * (Mgxz-Mgxy*Mgyz+Mgxz*Sgy))) / GyroDenominator;
-
 
         g_fGyroData[1] = (-(g_fGyroData[1] - g_GyroBias[1]) * (Mgyx-Mgyz*Mgzx+Mgyx*Sgz)+
 	                ((g_fGyroData[1] - g_GyroBias[1]) * (Sgx+Sgz-Mgxz*Mgzx+Sgx*Sgz+1)) -
 	                ((g_fGyroData[1] - g_GyroBias[1]) * (Mgyz-Mgxz*Mgyx+Mgyz*Sgx))) / GyroDenominator;
 
-
         g_fGyroData[2] = (-( g_fGyroData[2] - g_GyroBias[2]) * (Mgzx-Mgyx*Mgzy+Mgzx*Sgy)+
 	                (( g_fGyroData[2] - g_GyroBias[2]) * (Sgx+Sgy-Mgxy*Mgyx+Sgx*Sgy+1)) -
-	                (( g_fGyroData[2] - g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx))) / GyroDenominator; */
+	                (( g_fGyroData[2] - g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx))) / GyroDenominator;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		//

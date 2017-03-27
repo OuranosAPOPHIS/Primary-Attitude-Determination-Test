@@ -3,8 +3,8 @@
 close all
 % Import Log File from test. 
 
-test_data1 = csvread('GSDataLog(Test1).csv',3,5);
-test_data2 = csvread('GSDataLog2(Test1).csv',3,5);
+test_data1 = csvread('GSDataLog.csv',3,5);
+test_data2 = csvread('GSDataLog2.csv',3,5);
 
 % Plot Test Data
 
@@ -110,21 +110,21 @@ mazx = 1/(2*9.807)*(fazpx-faznx);
 % Accelerometer Calibration Calculation
 
 Ma = [ sax, maxy, maxz;...
-      mayx,  say, mayx;...
+      mayx,  say, mayz;...
       mazx, mazy,  saz];
   
 disp('Accel Calibration Values')
 fprintf('Maxy = %1.6f \n Maxz = %1.6f \n Mayx = %1.6f \n Mayz = %1.6f \n Mazx = %1.6f \n Mazy = %1.6f \n Sax = %1.6f \n Say = %1.6f \n Saz = %1.6f \n',maxy,maxz,mayx,mayz,mazx,mazy,sax,say,saz)
 fprintf('AccelBias = \n %1.6f \n %1.6f \n %1.6f \n\n',ba)
 
-% A_xyz_CAL = zeros(size(A_xyz));
-% 
-% for i = 1:size(test_data1,1);
-%     
-%     A_xyz_CAL(i,:) = transpose(inv(eye(3)+Ma)*(A_xyz(i,:)'-[bax;bay;baz]));
-%     
-% end
-% 
+A_xyz_CAL = zeros(size(A_xyz));
+
+for i = 1:size(test_data1,1);
+    
+    A_xyz_CAL(i,:) = transpose(inv(eye(3)+Ma)*(A_xyz(i,:)'-[bax;bay;baz]));
+    
+end
+
 %% 3-axis Gyroscope Calibration
 
 % To calibrate the 3-axis gyroscope, use the 3-axis rotation table to
@@ -138,6 +138,8 @@ fprintf('AccelBias = \n %1.6f \n %1.6f \n %1.6f \n\n',ba)
 % 4: negative, CW rotation around axis 2 with axis 1 at 0 degrees (-Y)
 % 5: positive, CCW rotation around axis 2 with axis 1 at 90 degrees (-X)
 % 6: negative, CW rotation around axis 2 with axis 1 at 90 degrees (+X)
+
+rotationRate = 25; % degrees per second.
 
 disp('GYRO CALIBRATION POST-PROCESSING')
 disp('Input a row vector of the start and end times marking each test leg.')
@@ -186,38 +188,38 @@ bg = [bgx;bgy;bgz];
 
 % Begin Scale Factor calculations.
 
-sgz = 1/(2*9.807)*(fgpz-fgnz)-1;
-sgx = 1/(2*9.807)*(fgpx-fgnx)-1;
-sgy = 1/(2*9.807)*(fgpy-fgny)-1;
+sgz = 1/(2*rotationRate)*(fgpz-fgnz)-1;
+sgx = 1/(2*rotationRate)*(fgpx-fgnx)-1;
+sgy = 1/(2*rotationRate)*(fgpy-fgny)-1;
 
 % Begin Misalignment calculations  
 
-mgxz = 1/(2*9.807)*(fgxpz-fgxnz);
-mgyz = 1/(2*9.807)*(fgypz-fgynz);
+mgxz = 1/(2*rotationRate)*(fgxpz-fgxnz);
+mgyz = 1/(2*rotationRate)*(fgypz-fgynz);
 
-mgxy = 1/(2*9.807)*(fgxpy-fgxny);
-mgzy = 1/(2*9.807)*(fgzpy-fgzny);
+mgxy = 1/(2*rotationRate)*(fgxpy-fgxny);
+mgzy = 1/(2*rotationRate)*(fgzpy-fgzny);
 
-mgyx = 1/(2*9.807)*(fgypx-fgynx);
-mgzx = 1/(2*9.807)*(fgzpx-fgznx);
+mgyx = 1/(2*rotationRate)*(fgypx-fgynx);
+mgzx = 1/(2*rotationRate)*(fgzpx-fgznx);
 
 % Gyroscope Calibration Calculation
 
 Mg = [ sgx, mgxy, mgxz;...
-      mgyx,  sgy, mgyx;...
+      mgyx,  sgy, mgyz;...
       mgzx, mgzy,  sgz];
 
 disp('Gyro Calibration Values')
 fprintf('Mgxy = %1.6f \n Mgxz = %1.6f \n Mgyx = %1.6f \n Mgyz = %1.6f \n Mgzx = %1.6f \n Mgzy = %1.6f \n Sgx = %1.6f \n Sgy = %1.6f \n Sgz = %1.6f \n',mgxy,mgxz,mgyx,mgyz,mgzx,mgzy,sgx,sgy,sgz)
 fprintf('GyroBias = \n %1.6f \n %1.6f \n %1.6f \n\n',bg)
 
-% W_xyz_CAL = zeros(size(W_xyz));
-% 
-% for i = 1:size(test_data2,1);
-%     
-%     W_xyz_CAL(i,:) = transpose(inv(eye(3)+Mg)*(W_xyz(i,:)'-[bgx;bgy;bgz]));
-%     
-% end    
+W_xyz_CAL = zeros(size(W_xyz));
+
+for i = 1:size(test_data2,1);
+    
+    W_xyz_CAL(i,:) = transpose(inv(eye(3)+Mg)*(W_xyz(i,:)'-[bgx;bgy;bgz]));
+    
+end    
 
 %% Save Data from Calibration
 
