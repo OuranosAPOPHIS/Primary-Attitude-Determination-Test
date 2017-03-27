@@ -240,20 +240,20 @@ float g_Accel2GFactor = 0.00119750976;
 // In this block, input the calibration values from IMU_Calibration.m
 // Abby's attempt at adding scale factors and misalignment terms to calibration of gyro and accel data.
 // Gyro Misalignment and Scale Factor terms are input from IMU_Calibration.m
-float Mgxy = 0.0;
-float Mgxz = 0.0;
-float Mgyx = 0.0;
-float Mgyz = 0.0;
-float Mgzx = 0.0;
-float Mgzy = 0.0;
+float Mgxy = -0.002248;
+float Mgxz = 0.012195;
+float Mgyx = -0.012843;
+float Mgyz = 0.029345;
+float Mgzx = -0.127172;
+float Mgzy = -0.029611;
 
-float Sgx = 0.0;
-float Sgy = 0.0;
-float Sgz =  0.0;
+float Sgx = 0.022752;
+float Sgy = -0.011966;
+float Sgz =  -0.016197;
 
-float g_GyroBias[3] = { 0.0,
-                        0.0,
-                        0.0 };
+float g_GyroBias[3] = { -0.915588,
+                         1.518673,
+                        -0.534490} ;
 
 // Common Denominator for gyro.
 float GyroDenominator;
@@ -261,22 +261,22 @@ float GyroDenominator;
 //
 // Same attempt, but with the accelerometer calibration.
 // Accel Misalignment and Scale Factor terms are input from IMU_Calibration.m
-float Maxy = 0.0;
-float Maxz = 0.0;
-float Mayx = 0.0;
-float Mayz = 0.0;
-float Mazx = 0.0;
-float Mazy = 0.0;
+float Maxy = -0.00007;
+float Maxz = 0.005894;
+float Mayx = 0.000820;
+float Mayz = 0.000876;
+float Mazx = 0.002714;
+float Mazy = -0.000808;
 
-float Sax = 0.0;
-float Say = 0.0;
-float Saz = 0.0;
+float Sax = -0.897372;
+float Say = -0.898219;
+float Saz = 0.896963;
 
 float AccelDenominator;
 
-float g_AccelBias[3] = {0.0,
-                         0.0,
-                        0.0 };
+float g_AccelBias[3] = {-0.036072,
+                         0.049469,
+                        -0.030289};
 
 //
 // Variable to track the frequency of packet sends to GS.
