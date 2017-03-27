@@ -75,6 +75,8 @@ extern void CustomCompDCMStart(tCompDCM *psDCM);
 
 #define SPEEDIS120MHZ true
 
+#define CALIBRATIONTEST true
+
 //
 // The number of LSB per degree/s for 2000 degrees/s.
 #define GYROLSB 262.4;
@@ -287,10 +289,12 @@ int32_t g_RadioCount = 0;
 //*****************************************************************************
 int main(void) {
 
+#if !CALIBRATIONTEST
 	int numCalcs = 0;
 	int index, j;
 	int32_t ui32Sum[6] = { 0 };
 	int16_t bias[6][50] = { 0 };
+#endif
 
 	//
 	// Enable lazy stacking for interrupt handlers.  This allows floating-point
@@ -353,12 +357,13 @@ int main(void) {
 #if IMU_ACTIVATED
 	InitIMU(g_SysClockSpeed, g_offsetData);
 
+#if !CALIBRATIONTEST
 	//
 	// Calculate the gyro bias.
 	while (numCalcs < 50) {
 		if (g_IMUDataFlag) {
 			uint8_t status;
-			uint8_t IMUData[12] = { 0 };
+			uint8_t IMUData[6] = { 0 };
 
 			//
 			// First check the status for which data is ready.
@@ -369,7 +374,7 @@ int main(void) {
 			if ((status & 0xC0) == (BMI160_GYR_RDY | BMI160_ACC_RDY)) {
 				//
 				// Then get the data for both the accel and gyro.
-				I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_GYRO_X, 12, IMUData);
+				I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_GYRO_X, 6, IMUData);
 
 				//
 				// Capture the gyro data.
@@ -379,12 +384,6 @@ int main(void) {
 						+ (int8_t) IMUData[2]);
 				bias[2][numCalcs] = (((int16_t) IMUData[5] << 8)
 						+ (int8_t) IMUData[4]);
-				bias[3][numCalcs] = (((int16_t) IMUData[7] << 8)
-						+ (int8_t) IMUData[6]);
-				bias[4][numCalcs] = (((int16_t) IMUData[9] << 8)
-						+ (int8_t) IMUData[8]);
-				bias[5][numCalcs] = (((int16_t) IMUData[11] << 8)
-						+ (int8_t) IMUData[10]);
 
 				numCalcs++;
 			}
@@ -394,14 +393,12 @@ int main(void) {
 	//
 	// Calculate the bias.
 	for (index = 0; index < numCalcs; index++)
-		for (j = 0; j < 6; j++)
+		for (j = 0; j < 3; j++)
 			ui32Sum[j] += bias[j][index];
 
 	for (index = 0; index < 3; index++)
-	   // g_GyroCalBias[index] = ui32Sum[index] / numCalcs;
-	for (index = 3; index < 6; index++)
-		g_AccelCalBias[index - 3] = ui32Sum[index] / numCalcs;
-	//g_AccelCalBias[2] -= 16384;
+	    g_GyroCalBias[index] = ui32Sum[index] / numCalcs;
+#endif
 #endif
 
 	//
@@ -457,6 +454,13 @@ int main(void) {
 	TimerEnable(RADIO_TIMER_CHECK, TIMER_A);
 #endif
 
+#if IMU_ACTIVATED
+	//
+	// Enable the DCM.
+	if (g_bDCMStarted == 0)
+		TimerEnable(DCM_TIMER, TIMER_A);
+#endif
+
 	//
 	// Print menu.
 	Menu('M');
@@ -474,8 +478,6 @@ int main(void) {
 	//	if (g_RadioFlag)
 	//		ProcessRadio();
 
-		if (g_IMUDataFlag)
-		    ProcessIMUData();
 	}
 	//
 	// Program ending. Do any clean up that's needed.
@@ -644,7 +646,7 @@ void BMI160IntHandler(void) {
 	if (ui32Status == BOOST_GPIO_INT) {
 		//
 		// IMU data is ready.
-	    g_IMUDataFlag = true;
+	    ProcessIMUData();
 	}
 }
 
@@ -1114,7 +1116,7 @@ void ProcessIMUData(void) {
 		g_fGyroData[2] = ((float) (i16GyroData[2])) / GYROLSB;
 
 ////////////////////// THE GYRO MATHS ///////////////////////////////////////////////////////////
-	/*	g_fGyroData[0] = (-(g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz) +
+		g_fGyroData[0] = (-(g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz) +
 	                ((g_fGyroData[0] - g_GyroBias[0]) * (Sgy+Sgz-Mgyz*Mgzy+Sgy*Sgz+1)) -
 	                ((g_fGyroData[0] - g_GyroBias[0]) * (Mgxz-Mgxy*Mgyz+Mgxz*Sgy))) / GyroDenominator;
 
@@ -1126,7 +1128,7 @@ void ProcessIMUData(void) {
 
         g_fGyroData[2] = (-( g_fGyroData[2] - g_GyroBias[2]) * (Mgzx-Mgyx*Mgzy+Mgzx*Sgy)+
 	                (( g_fGyroData[2] - g_GyroBias[2]) * (Sgx+Sgy-Mgxy*Mgyx+Sgx*Sgy+1)) -
-	                (( g_fGyroData[2] - g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx))) / GyroDenominator; */
+	                (( g_fGyroData[2] - g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx))) / GyroDenominator;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		//
@@ -1158,30 +1160,6 @@ void ProcessIMUData(void) {
                 ((g_fAccelData[2] - g_AccelBias[2]) * (Mazy-Maxy*Mazx+Mazy*Sax))) / AccelDenominator;
 //////////////////////////////////////////////////////////////////////////////////////////////////
 	}
-
-    //
-    // Loop counter print once per second.
-    if (g_PrintRawBMIData && g_loopCount)
-    {
-        UARTprintf("Accelx = %d\r\nAccely = %d\r\n", i16AccelData[0],
-                   i16AccelData[1]);
-        UARTprintf("Accelz = %d\r\n", i16AccelData[2]);
-        UARTprintf("Gyrox = %d\r\nGyroy = %d\r\n", i16GyroData[0],
-                   i16GyroData[1]);
-        UARTprintf("Gyroz = %d\r\n", i16GyroData[2]);
-
-        UARTprintf("Magx = %d\r\nMagy = %d\r\n", i8MagData[0], i8MagData[1]);
-        UARTprintf("Magz = %d\r\n", i8MagData[2]);
-
-        //
-        // Reset loop count.
-        g_loopCount = false;
-    }
-
-	//
-	// Enable the DCM if it has not been started yet.
-	if (g_bDCMStarted == 0)
-		TimerEnable(DCM_TIMER, TIMER_A);
 
 	//
 	// Reset the flag
