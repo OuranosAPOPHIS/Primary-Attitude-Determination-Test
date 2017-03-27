@@ -352,6 +352,11 @@ void InitBMI160(uint32_t I2C_base, uint8_t AccelRate, uint8_t AccelAccuracy, uin
     I2CRead(I2C_base, BMI160_ADDRESS, BMI160_OFFSET, BMI160_OFFSET_SIZE, offsetValues);
 
 #if DEBUG
+    UARTprintf("(Offset Values): 0x%x, 0x%x, 0x%x\n\r", offsetValues[0], offsetValues[1], offsetValues[2]);
+    UARTprintf("0x%x, 0x%x, 0x%x, 0x%x\n\r", offsetValues[3], offsetValues[4], offsetValues[5], offsetValues[6]);
+#endif
+
+#if DEBUG
     //
     // Check the interrupt configuration
     I2CRead(I2C_base, BMI160_ADDRESS, BMI160_INT_OUT_CTRL, 1, state);
