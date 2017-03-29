@@ -82,6 +82,8 @@ extern void CustomCompDCMStart(tCompDCM *psDCM);
 #define GYROLSB 262.4;
 #define ACCELLSB 16384
 
+#define DT 0.01
+
 
 //*****************************************************************************
 //
@@ -279,6 +281,8 @@ float g_fGyroBias[3] = { 0.043825,
 // Common Denominator for gyro.
 float GyroDenominator;
 
+float g_fEulerAngles[3] = { 0.0f };
+
 //
 // Variable to track the frequency of packet sends to GS.
 int32_t g_RadioCount = 0;
@@ -432,7 +436,7 @@ int main(void) {
 
 	//
 	// Initialize the DCM.
-	CompDCMInit(&g_sCompDCMInst, 1.0f / DCM_UPDATE_RATE, 0.2f, 0.6f, 0.2f);
+	//CompDCMInit(&g_sCompDCMInst, 1.0f / DCM_UPDATE_RATE, 0.2f, 0.6f, 0.2f);
 	g_bDCMStarted = false;
 
 	//
@@ -458,8 +462,8 @@ int main(void) {
 #if IMU_ACTIVATED
 	//
 	// Enable the DCM.
-	if (g_bDCMStarted == 0)
-		TimerEnable(DCM_TIMER, TIMER_A);
+	//if (g_bDCMStarted == 0)
+	//	TimerEnable(DCM_TIMER, TIMER_A);
 #endif
 
 	//
@@ -473,12 +477,6 @@ int main(void) {
 		// First check for commands from Console.
 		if (g_ConsoleFlag)
 			Menu(g_CharConsole);
-
-		//
-		// Check if data from the radio is ready.
-	//	if (g_RadioFlag)
-	//		ProcessRadio();
-
 	}
 	//
 	// Program ending. Do any clean up that's needed.
@@ -1119,34 +1117,17 @@ void ProcessIMUData(void) {
 		fGyroDataUnCal[2] = ((float) (i16GyroData[2])) / GYROLSB;
 
 ////////////////////// THE GYRO MATHS ///////////////////////////////////////////////////////////
-		g_fGyroData[0] = ((g_fGyroBias[1] - fGyroDataUnCal[1]) * (Maxy + Maxy*Saz - Maxz*Mazy)) / GyroDenominator
-						- ((g_fGyroBias[0] - fGyroDataUnCal[0])*(Say + Saz + Say*Saz - Mayz*Mazy + 1)) / GyroDenominator
-						+ ((g_fGyroBias[2] - fGyroDataUnCal[2])*(Maxz + Maxz*Say - Maxy*Mayz)) / GyroDenominator;
+		g_fGyroData[0] = ((g_fGyroBias[1] - fGyroDataUnCal[1]) * (Mgxy + Mgxy*Sgz - Mgxz*Mgzy)) / GyroDenominator
+						- ((g_fGyroBias[0] - fGyroDataUnCal[0])*(Sgy + Sgz + Sgy*Sgz - Mgyz*Mgzy + 1)) / GyroDenominator
+						+ ((g_fGyroBias[2] - fGyroDataUnCal[2])*(Mgxz + Mgxz*Sgy - Mgxy*Mgyz)) / GyroDenominator;
 
-				g_fGyroData[1] = ((g_fGyroBias[0] - fGyroDataUnCal[0]) * (Mayx + Mayx*Saz - Mayz*Mazx)) / GyroDenominator
-						- ((g_fGyroBias[1] - fGyroDataUnCal[1])*(Sax + Saz + Sax*Saz - Maxz*Mazx + 1)) / GyroDenominator
-						+ ((g_fGyroBias[2] - fGyroDataUnCal[2]) * (Mayz + Mayz*Sax - Maxz*Mayx)) / GyroDenominator;
+		g_fGyroData[1] = ((g_fGyroBias[0] - fGyroDataUnCal[0]) * (Mgyx + Mgyx*Sgz - Mgyz*Mgzx)) / GyroDenominator
+				- ((g_fGyroBias[1] - fGyroDataUnCal[1])*(Sgx + Sgz + Sgx*Sgz - Mgxz*Mgzx + 1)) / GyroDenominator
+				+ ((g_fGyroBias[2] - fGyroDataUnCal[2]) * (Mgyz + Mgyz*Sgx - Mgxz*Mgyx)) / GyroDenominator;
 
-				g_fGyroData[2] = ((g_fGyroBias[0] - fGyroDataUnCal[0]) * (Mazx + Mazx*Say - Mayx*Mazy)) / GyroDenominator
-						- ((g_fGyroBias[2] - fGyroDataUnCal[2]) * (Sax + Say + Sax*Say - Maxy*Mayx + 1)) / GyroDenominator
-						+ ((g_fGyroBias[1] - fGyroDataUnCal[1]) * (Mazy + Mazy*Sax - Maxy*Mazx)) / GyroDenominator;
-
-
-		/*
-		g_fGyroData[0] = (-(g_fGyroData[0] - g_GyroBias[0]) * (Mgxy-Mgxz*Mgzy+Mgxy*Sgz) +
-	                ((g_fGyroData[0] - g_GyroBias[0]) * (Sgy+Sgz-Mgyz*Mgzy+Sgy*Sgz+1)) -
-	                ((g_fGyroData[0] - g_GyroBias[0]) * (Mgxz-Mgxy*Mgyz+Mgxz*Sgy))) / GyroDenominator;
-
-
-        g_fGyroData[1] = (-(g_fGyroData[1] - g_GyroBias[1]) * (Mgyx-Mgyz*Mgzx+Mgyx*Sgz)+
-	                ((g_fGyroData[1] - g_GyroBias[1]) * (Sgx+Sgz-Mgxz*Mgzx+Sgx*Sgz+1)) -
-	                ((g_fGyroData[1] - g_GyroBias[1]) * (Mgyz-Mgxz*Mgyx+Mgyz*Sgx))) / GyroDenominator;
-
-
-        g_fGyroData[2] = (-( g_fGyroData[2] - g_GyroBias[2]) * (Mgzx-Mgyx*Mgzy+Mgzx*Sgy)+
-	                (( g_fGyroData[2] - g_GyroBias[2]) * (Sgx+Sgy-Mgxy*Mgyx+Sgx*Sgy+1)) -
-	                (( g_fGyroData[2] - g_GyroBias[2]) * (Mgzy-Mgxy*Mgzx+Mgzy*Sgx))) / GyroDenominator; */
-////////////////////////////////////////////////////////////////////////////////////////////////////
+		g_fGyroData[2] = ((g_fGyroBias[0] - fGyroDataUnCal[0]) * (Mgzx + Mgzx*Sgy - Mgyx*Mgzy)) / GyroDenominator
+				- ((g_fGyroBias[2] - fGyroDataUnCal[2]) * (Sgx + Sgy + Sgx*Sgy - Mgxy*Mgyx + 1)) / GyroDenominator
+				+ ((g_fGyroBias[1] - fGyroDataUnCal[1]) * (Mgzy + Mgzy*Sgx - Mgxy*Mgzx)) / GyroDenominator;
 
 		//
 		// Set the accelerometer data.
@@ -1174,25 +1155,29 @@ void ProcessIMUData(void) {
 				- ((g_fAccelBias[2] - fAccelDataUnCal[2]) * (Sax + Say + Sax*Say - Maxy*Mayx + 1)) / AccelDenominator
 				+ ((g_fAccelBias[1] - fAccelDataUnCal[1]) * (Mazy + Mazy*Sax - Maxy*Mazx)) / AccelDenominator;
 
-	    /*
-         g_fAccelData[0] = (-(g_fAccelData[0] - g_AccelBias[0]) * (Maxy-Maxz*Mazy+Maxy*Saz) +
-                ((g_fAccelData[0] - g_AccelBias[0]) * (Say+Saz-Mayz*Mazy+Say*Saz+1)) -
-                ((g_fAccelData[0] - g_AccelBias[0]) * (Maxz-Maxy*Mayz+Maxz*Say))) / AccelDenominator;
+		//
+		// Calculate roll, pitch and yaw.
+		g_fEulerAngles[0] = g_fEulerAngles[0] + g_fGyroData[0] * DT;
+		g_fEulerAngles[1] = g_fEulerAngles[1] + g_fGyroData[1] * DT;
+		g_fEulerAngles[2] = g_fEulerAngles[2] + g_fGyroData[2] * DT;
 
-         g_fAccelData[1] = (-(g_fAccelData[1] - g_AccelBias[1]) * (Mayx-Mayz*Mazx+Mayx*Saz) +
-                ((g_fAccelData[1] - g_AccelBias[1]) * (Sax+Saz-Maxz*Mazx+Sax*Saz+1)) -
-                ((g_fAccelData[1] - g_AccelBias[1]) * (Mayz-Maxz*Mayx+Mayz*Sax))) / AccelDenominator;
-
-         g_fAccelData[2] = (-(g_fAccelData[2] - g_AccelBias[2]) * (Mazx-Mayx*Mazy+Mazx*Say) +
-                ((g_fAccelData[2] - g_AccelBias[2]) * (Sax+Say-Maxy*Mayx+Sax*Say+1)) -
-                ((g_fAccelData[2] - g_AccelBias[2]) * (Mazy-Maxy*Mazx+Mazy*Sax))) / AccelDenominator; */
+		sStatus.fRoll = g_fEulerAngles[0];
+		sStatus.fPitch = g_fEulerAngles[1];
+		sStatus.fYaw = g_fEulerAngles[2];
 	}
 
 	if (g_PrintRawBMIData && g_PrintFlag)
 	{
-		UARTprintf("Gyro X: %d\r\nGyro Y: %d\r\nGyro Z: %d\r\n", i16GyroData[0], i16GyroData[1], i16GyroData[2]);
+		/*int temp[3] = {(int)g_fEulerAngles[0], (int)g_fEulerAngles[1], (int)g_fEulerAngles[2]};
+		int dec[3] = {(int)(g_fEulerAngles[0] * 100) - (int)(g_fEulerAngles[0]),
+					  (int)(g_fEulerAngles[1] * 100) - (int)(g_fEulerAngles[1]),
+					  (int)(g_fEulerAngles[2] * 100) - (int)(g_fEulerAngles[2])};
 
-		UARTprintf("Accel Z: %d\r\n", i16AccelData[2]);
+		UARTprintf("Pitch: %d.%d\r\n", temp[0], dec[0]);
+		UARTprintf("Roll: %d.%d\r\n", temp[1], dec[1]);
+		UARTprintf("Yaw: %d.%d\r\n", temp[2], dec[2]); */
+
+		UARTprintf("Gyro: %d, %d, %d\r\n", i16GyroData[0], i16GyroData[1], i16GyroData[2]);
 	}
 
 	//
