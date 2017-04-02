@@ -45,6 +45,9 @@ void UpdateAccel(sAttitudeData *sAttData, float fAccelX, float fAccelY, float fA
 void UpdateGyro(sAttitudeData *sAttData, float fGyroX, float fGyroY, float fGyroZ);
 void UpdateMag(sAttitudeData *sAttData, float fMagX, float fMagY, float fMagZ);
 void InitHeading(sAttitudeData *sAttData);
-void UpdateHeading(sAttitudeData *sAttData);
+void UpdateYaw(sAttitudeData *sAttData);
+void UpdateRoll(sAttitudeData *sAttData);
+void UpdatePitch(sAttitudeData *sAttData);
+void UpdateAttitude(sAttitudeData *sAttData);
 
 #endif /* ATTITUDE_ESTIMATION_H_ */

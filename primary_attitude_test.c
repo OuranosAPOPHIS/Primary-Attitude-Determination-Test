@@ -52,8 +52,6 @@
 
 #include "attitude_estimation.h"
 
-
-
 extern void CustomCompDCMUpdate(tCompDCM *psDCM);
 extern void CustomCompDCMStart(tCompDCM *psDCM);
 
@@ -1183,7 +1181,7 @@ void ProcessIMUData(void) {
 		UpdateAccel(&sAttData, g_fAccelData[0], g_fAccelData[1], g_fAccelData[2]);
 		UpdateGyro(&sAttData, g_fGyroData[0], g_fGyroData[1], g_fGyroData[2]);
 
-		UpdateHeading(&sAttData);
+		UpdateYaw(&sAttData);
 
 		sStatus.fRoll = sAttData.fRoll;
 		sStatus.fPitch = sAttData.fPitch;

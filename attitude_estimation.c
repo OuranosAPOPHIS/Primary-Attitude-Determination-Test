@@ -12,10 +12,9 @@
  *
  *      Portions of this code were derived from TI's
  *      sensorlib compDCM functions. Additionally, a
- *      portion of this code was derived from github.
- *      Credit: https://github.com/Skadi15/Overlord_System/blob/master/sensors/windrose_module.c
+ *      portion of this code was derived from github user Skadi15 - Christian Moncada.
+ *      https://github.com/Skadi15/Overlord_System/blob/master/sensors/windrose_module.c
  */
-
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -99,7 +98,7 @@ void InitHeading(sAttitudeData *sAttData)
 }
 
 /*
- * UpdateHeading
+ * UpdateYaw
  * Parameter(s):
  * 	*sAttData - Pointer to the sAttitudeData struct defined above.
  * Purpose:
@@ -107,7 +106,7 @@ void InitHeading(sAttitudeData *sAttData)
  *
  * Note: This function must use calibrated gyro and mag data.
  */
-void UpdateHeading(sAttitudeData *sAttData)
+void UpdateYaw(sAttitudeData *sAttData)
 {
 	float fGyroHeading;
 	float fMagHeading;
@@ -142,3 +141,58 @@ void UpdateHeading(sAttitudeData *sAttData)
 	if (sAttData->fYaw > 360.0f)
 		sAttData->fYaw -= 360.0f;
 }
+
+/*
+ * UpdateRoll
+ * Parameter(s):
+ * 	*sAttData - Pointer to the sAttitudeData struct defined above.
+ * Purpose:
+ * 	Updates the current roll based on accelerometer	and gyroscope readings.
+ *
+ * Note: This function must use calibrated accel and gyro data.
+ */
+void UpdateRoll(sAttitudeData *sAttData)
+{
+	// TODO: update roll function.
+}
+
+/*
+ * UpdatePitch
+ * Parameter(s):
+ * 	*sAttData - Pointer to the sAttitudeData struct defined above.
+ * Purpose:
+ * 	Updates the current pitch based on accelerometer and gyroscope readings.
+ *
+ * Note: This function must use calibrated accel and gyro data.
+ */
+void UpdatePitch(sAttitudeData *sAttData)
+{
+	// TODO: update pitch function.
+}
+
+/*
+ * UpdateAttitude
+ * Parameter(s):
+ * 	*sAttData - Pointer to the sAttitudeData struct defined above.
+ * Purpose:
+ * 	Updates the current attitude based on accelerometer, magetometer
+ * 	and gyroscope readings.
+ *
+ * Note: This function must use calibrated accel, gyro and mag data.
+ */
+void UpdateAttitude(sAttitudeData *sAttData)
+{
+	//
+	// Get the heading to update yaw.
+	UpdateYaw(sAttData);
+
+	//
+	// Get the roll.
+	UpdateRoll(sAttData);
+
+	//
+	// Get the pitch.
+	UpdatePitch(sAttData);
+}
+
+
