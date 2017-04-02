@@ -45,12 +45,14 @@
 #include "initializations.h"
 #include "APOPHIS_pin_map.h"
 #include "packet_format.h"
+
 #include "sensors/bmi160.h"
 #include "sensors/i2c_driver.h"
-
+#include "sensors/accel_gyro_cal_data.h"
 
 extern void CustomCompDCMUpdate(tCompDCM *psDCM);
 extern void CustomCompDCMStart(tCompDCM *psDCM);
+extern void InitOrientation(float *accelData, float *magData, float *gyroData, float *EulerAngles);
 
 
 //*****************************************************************************
@@ -79,7 +81,7 @@ extern void CustomCompDCMStart(tCompDCM *psDCM);
 
 //
 // The number of LSB per degree/s for 125 degrees/s.
-#define GYROLSB 262.4;
+#define GYROLSB 262.4
 #define ACCELLSB 16384
 
 #define DT 0.01
@@ -1102,7 +1104,7 @@ void ProcessIMUData(void) {
 		I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_GYRO_X, 12, IMUData);
 
 		//
-		// Set the gyro data to the global variables.
+		// Set the gyro data.
 		i16GyroData[0] = (((int16_t) IMUData[1] << 8) + (int8_t) IMUData[0])
 				- g_GyroCalBias[0];
 		i16GyroData[1] = (((int16_t) IMUData[3] << 8) + (int8_t) IMUData[2])
@@ -1111,12 +1113,40 @@ void ProcessIMUData(void) {
 				- g_GyroCalBias[2];
 
 		//
-		// Convert data to float.
-		fGyroDataUnCal[0] = ((float) (i16GyroData[0])) / GYROLSB;
-		fGyroDataUnCal[1] = ((float) (i16GyroData[1])) / GYROLSB;
-		fGyroDataUnCal[2] = ((float) (i16GyroData[2])) / GYROLSB;
+		// Set the accelerometer data.
+		i16AccelData[0] = (((int16_t) IMUData[7] << 8) + (int8_t) IMUData[6]);
+		i16AccelData[1] = (((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8]);
+		i16AccelData[2] = (((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10]);
 
-////////////////////// THE GYRO MATHS ///////////////////////////////////////////////////////////
+		//
+		// Convert gyro data to float.
+		fGyroDataUnCal[0] = (((float) (i16GyroData[0])) / GYROLSB) - BGX;
+		fGyroDataUnCal[1] = (((float) (i16GyroData[1])) / GYROLSB) - BGY;
+		fGyroDataUnCal[2] = (((float) (i16GyroData[2])) / GYROLSB) - BGZ;
+
+		//
+		// Compute the accel data to float.
+		fAccelDataUnCal[0] = (((float) i16AccelData[0]) / ACCELLSB) - BAX;
+		fAccelDataUnCal[1] = (((float) i16AccelData[1]) / ACCELLSB) - BAY;
+		fAccelDataUnCal[2] = (((float) i16AccelData[2]) / ACCELLSB) - BAZ;
+
+		//
+		// Pick a method.
+#if true
+		// Calculate the calibrated gyro data.
+		g_fGyroData[0] = fGyroDataUnCal[0] * SGX + fGyroDataUnCal[1] * MGXY + fGyroDataUnCal[2] * MGXZ;
+		g_fGyroData[1] = fGyroDataUnCal[0] * MGYX + fGyroDataUnCal[1] * SGY + fGyroDataUnCal[2] * MGYZ;
+		g_fGyroData[2] = fGyroDataUnCal[0] * MGZX + fGyroDataUnCal[1] * MGZY + fGyroDataUnCal[2] * SGZ;
+
+		//
+		// Calculate the calibrated accelerometer data.
+		g_fAccelData[0] = fAccelDataUnCal[0] * SAX + fAccelDataUnCal[1] * MAXY + fAccelDataUnCal[2] * MAXZ;
+		g_fAccelData[1] = fAccelDataUnCal[0] * MAYX + fAccelDataUnCal[1] * SAY + fAccelDataUnCal[2] * MAYZ;
+		g_fAccelData[2] = fAccelDataUnCal[0] * MAZX + fAccelDataUnCal[1] * MAZY + fAccelDataUnCal[2] * SAZ;
+
+#else
+		//
+		// Gyro calibration correction.
 		g_fGyroData[0] = ((g_fGyroBias[1] - fGyroDataUnCal[1]) * (Mgxy + Mgxy*Sgz - Mgxz*Mgzy)) / GyroDenominator
 						- ((g_fGyroBias[0] - fGyroDataUnCal[0])*(Sgy + Sgz + Sgy*Sgz - Mgyz*Mgzy + 1)) / GyroDenominator
 						+ ((g_fGyroBias[2] - fGyroDataUnCal[2])*(Mgxz + Mgxz*Sgy - Mgxy*Mgyz)) / GyroDenominator;
@@ -1128,18 +1158,6 @@ void ProcessIMUData(void) {
 		g_fGyroData[2] = ((g_fGyroBias[0] - fGyroDataUnCal[0]) * (Mgzx + Mgzx*Sgy - Mgyx*Mgzy)) / GyroDenominator
 				- ((g_fGyroBias[2] - fGyroDataUnCal[2]) * (Sgx + Sgy + Sgx*Sgy - Mgxy*Mgyx + 1)) / GyroDenominator
 				+ ((g_fGyroBias[1] - fGyroDataUnCal[1]) * (Mgzy + Mgzy*Sgx - Mgxy*Mgzx)) / GyroDenominator;
-
-		//
-		// Set the accelerometer data.
-		i16AccelData[0] = (((int16_t) IMUData[7] << 8) + (int8_t) IMUData[6]);
-		i16AccelData[1] = (((int16_t) IMUData[9] << 8) + (int8_t) IMUData[8]);
-		i16AccelData[2] = (((int16_t) IMUData[11] << 8) + (int8_t) IMUData[10]);
-
-		//
-		// Compute the accel data into floating point values.
-		fAccelDataUnCal[0] = ((float) i16AccelData[0]) / ACCELLSB;
-		fAccelDataUnCal[1] = ((float) i16AccelData[1]) / ACCELLSB;
-		fAccelDataUnCal[2] = ((float) i16AccelData[2]) / ACCELLSB;
 
 		//
 		// Accelerometer calibration correction.
@@ -1154,12 +1172,14 @@ void ProcessIMUData(void) {
 		g_fAccelData[2] = ((g_fAccelBias[0] - fAccelDataUnCal[0]) * (Mazx + Mazx*Say - Mayx*Mazy)) / AccelDenominator
 				- ((g_fAccelBias[2] - fAccelDataUnCal[2]) * (Sax + Say + Sax*Say - Maxy*Mayx + 1)) / AccelDenominator
 				+ ((g_fAccelBias[1] - fAccelDataUnCal[1]) * (Mazy + Mazy*Sax - Maxy*Mazx)) / AccelDenominator;
-
+#endif
 		//
 		// Calculate roll, pitch and yaw.
-		g_fEulerAngles[0] = g_fEulerAngles[0] + g_fGyroData[0] * DT;
-		g_fEulerAngles[1] = g_fEulerAngles[1] + g_fGyroData[1] * DT;
-		g_fEulerAngles[2] = g_fEulerAngles[2] + g_fGyroData[2] * DT;
+		//g_fEulerAngles[0] = g_fEulerAngles[0] + g_fGyroData[0] * DT;
+		//g_fEulerAngles[1] = g_fEulerAngles[1] + g_fGyroData[1] * DT;
+		//g_fEulerAngles[2] = g_fEulerAngles[2] + g_fGyroData[2] * DT;
+
+		InitOrientation(&g_fAccelData[0], &g_fMagData[0], &g_fGyroData[0], &g_fEulerAngles[0]);
 
 		sStatus.fRoll = g_fEulerAngles[0];
 		sStatus.fPitch = g_fEulerAngles[1];
