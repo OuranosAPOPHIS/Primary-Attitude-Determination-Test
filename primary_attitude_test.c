@@ -67,20 +67,9 @@ extern void CustomCompDCMStart(tCompDCM *psDCM);
 #define DEBUG true
 #define APOPHIS false
 
-#define CONSOLE_ACTIVATED true
-#define RADIO_ACTIVATED true
-#define GPS_ACTIVATED false
-#define GNDMTRS_ACTIVATED false
-#define SECONDARY_ATTITUDE false
-#define ULTRASONIC_ACTIVATED false
-#define SOLENOIDS_ACTIVATED false
-#define IMU_ACTIVATED true
-#define ALTIMETER_ACTIVATED false
-#define AIRMTRS_ACTIVATED false
-
 #define SPEEDIS120MHZ true
 
-#define CALIBRATIONTEST true
+#define STABBIAS true
 
 //
 // The number of LSB per degree/s for 125 degrees/s.
@@ -197,11 +186,6 @@ tCompDCM g_sCompDCMInst;
 bool g_bDCMStarted;
 
 //
-// Temporary storage for the accel and gyro data received from the BMI160.
-// Each x,y,z value takes up two bytes.
-bool g_IMUDataFlag = false;
-
-//
 // Float conversion for mag data.
 float g_fMagLSB = 16;
 
@@ -209,7 +193,7 @@ float g_fMagLSB = 16;
 // Offset compensation data for the accel and gyro.
 uint8_t g_offsetData[7] = { 0 };
 
-int16_t g_GyroCalBias[3] = { 0 };
+float g_GyroStabBias[3] = { 0 };
 
 //
 // Calculated bias for mag from MATLAB in uTeslas.
@@ -304,11 +288,11 @@ sAttitudeData sAttData;
 //*****************************************************************************
 int main(void) {
 
-#if !CALIBRATIONTEST
+#if STABBIAS
 	int numCalcs = 0;
 	int index, j;
-	int32_t ui32Sum[3] = { 0 };
-	int16_t bias[3][50] = { 0 };
+	float fSum[3] = { 0 };
+	float fbias[3][50] = { 0 };
 #endif
 
 	//
@@ -363,45 +347,51 @@ int main(void) {
 
 	//
 	// Initialize the radio if turned on.
-#if RADIO_ACTIVATED
 	InitRadio(g_SysClockSpeed);
-#endif
 
 	//
 	// Initialize the BMI160 if enabled.
-#if IMU_ACTIVATED
 	InitIMU(g_SysClockSpeed, g_offsetData);
 
-#if !CALIBRATIONTEST
+#if STABBIAS
 	//
 	// Calculate the gyro bias.
 	while (numCalcs < 50) {
-		if (g_IMUDataFlag) {
-			uint8_t status;
-			uint8_t IMUData[6] = { 0 };
+		uint8_t status;
+		uint8_t IMUData[6] = { 0 };
+		int16_t i16GyroData[3];
+		float fGyroDataUnCal[3];
+
+		//
+		// First check the status for which data is ready.
+		I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_STATUS, 1, &status);
+
+		//
+		// Check what status returned.
+		if ((status & 0xC0) == (BMI160_GYR_RDY | BMI160_ACC_RDY)) {
+			//
+			// Then get the data for the gyro.
+			I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_GYRO_X, 6, IMUData);
 
 			//
-			// First check the status for which data is ready.
-			I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_STATUS, 1, &status);
+			// Set the gyro data.
+			i16GyroData[0] = (((int16_t) IMUData[1] << 8) + (int8_t) IMUData[0]);
+			i16GyroData[1] = (((int16_t) IMUData[3] << 8) + (int8_t) IMUData[2]);
+			i16GyroData[2] = (((int16_t) IMUData[5] << 8) + (int8_t) IMUData[4]);
 
 			//
-			// Check what status returned.
-			if ((status & 0xC0) == (BMI160_GYR_RDY | BMI160_ACC_RDY)) {
-				//
-				// Then get the data for both the accel and gyro.
-				I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_GYRO_X, 6, IMUData);
+			// Convert gyro data to float.
+			fGyroDataUnCal[0] = (((float) (i16GyroData[0])) / GYROLSB) - BGX;
+			fGyroDataUnCal[1] = (((float) (i16GyroData[1])) / GYROLSB) - BGY;
+			fGyroDataUnCal[2] = (((float) (i16GyroData[2])) / GYROLSB) - BGZ;
 
-				//
-				// Capture the gyro data.
-				bias[0][numCalcs] = (((int16_t) IMUData[1] << 8)
-						+ (int8_t) IMUData[0]);
-				bias[1][numCalcs] = (((int16_t) IMUData[3] << 8)
-						+ (int8_t) IMUData[2]);
-				bias[2][numCalcs] = (((int16_t) IMUData[5] << 8)
-						+ (int8_t) IMUData[4]);
+			//
+			// Calculate the calibrated gyro data.
+			fbias[0][numCalcs] = fGyroDataUnCal[0] * SGX + fGyroDataUnCal[1] * MGXY + fGyroDataUnCal[2] * MGXZ;
+			fbias[1][numCalcs] = fGyroDataUnCal[0] * MGYX + fGyroDataUnCal[1] * SGY + fGyroDataUnCal[2] * MGYZ;
+			fbias[2][numCalcs] = fGyroDataUnCal[0] * MGZX + fGyroDataUnCal[1] * MGZY + fGyroDataUnCal[2] * SGZ;
 
-				numCalcs++;
-			}
+			numCalcs++;
 		}
 	}
 
@@ -409,12 +399,15 @@ int main(void) {
 	// Calculate the bias.
 	for (index = 0; index < numCalcs; index++)
 		for (j = 0; j < 3; j++)
-			ui32Sum[j] += bias[j][index];
+			fSum[j] += fbias[j][index];
 
 	for (index = 0; index < 3; index++)
-	    g_GyroCalBias[index] = ui32Sum[index] / numCalcs;
+		g_GyroStabBias[index] = fSum[index] / numCalcs;
 #endif
-#endif
+
+	//
+	// Disable interrupts.
+	IntMasterDisable();
 
 	//
 	// Initialize the state of the system.
@@ -466,19 +459,15 @@ int main(void) {
 	SysTickEnable();
 
 
-#if (RADIO_ACTIVATED)
 	//
 	// Activate the radio timers.
 	TimerEnable(RADIO_TIMER, TIMER_A);
 	TimerEnable(RADIO_TIMER_CHECK, TIMER_A);
-#endif
 
-#if IMU_ACTIVATED
 	//
 	// Enable the DCM.
 	//if (g_bDCMStarted == 0)
 	//	TimerEnable(DCM_TIMER, TIMER_A);
-#endif
 
 	//
 	// Initialize the heading.
@@ -1073,8 +1062,6 @@ void ProcessIMUData(void) {
 	float fAccelDataUnCal[3];
 	float fGyroDataUnCal[3];
 
-	IntMasterDisable();
-
 	//
 	// First check the status for which data is ready.
 	I2CRead(BOOST_I2C, BMI160_ADDRESS, BMI160_STATUS, 1, &status);
@@ -1125,12 +1112,9 @@ void ProcessIMUData(void) {
 
 		//
 		// Set the gyro data.
-		i16GyroData[0] = (((int16_t) IMUData[1] << 8) + (int8_t) IMUData[0])
-				- g_GyroCalBias[0];
-		i16GyroData[1] = (((int16_t) IMUData[3] << 8) + (int8_t) IMUData[2])
-				- g_GyroCalBias[1];
-		i16GyroData[2] = (((int16_t) IMUData[5] << 8) + (int8_t) IMUData[4])
-				- g_GyroCalBias[2];
+		i16GyroData[0] = (((int16_t) IMUData[1] << 8) + (int8_t) IMUData[0]);
+		i16GyroData[1] = (((int16_t) IMUData[3] << 8) + (int8_t) IMUData[2]);
+		i16GyroData[2] = (((int16_t) IMUData[5] << 8) + (int8_t) IMUData[4]);
 
 		//
 		// Set the accelerometer data.
@@ -1154,9 +1138,9 @@ void ProcessIMUData(void) {
 		// Pick a method.
 #if true
 		// Calculate the calibrated gyro data.
-		g_fGyroData[0] = fGyroDataUnCal[0] * SGX + fGyroDataUnCal[1] * MGXY + fGyroDataUnCal[2] * MGXZ;
-		g_fGyroData[1] = fGyroDataUnCal[0] * MGYX + fGyroDataUnCal[1] * SGY + fGyroDataUnCal[2] * MGYZ;
-		g_fGyroData[2] = fGyroDataUnCal[0] * MGZX + fGyroDataUnCal[1] * MGZY + fGyroDataUnCal[2] * SGZ;
+		g_fGyroData[0] = (fGyroDataUnCal[0] * SGX + fGyroDataUnCal[1] * MGXY + fGyroDataUnCal[2] * MGXZ) - g_GyroStabBias[0];
+		g_fGyroData[1] = (fGyroDataUnCal[0] * MGYX + fGyroDataUnCal[1] * SGY + fGyroDataUnCal[2] * MGYZ) - g_GyroStabBias[1];
+		g_fGyroData[2] = (fGyroDataUnCal[0] * MGZX + fGyroDataUnCal[1] * MGZY + fGyroDataUnCal[2] * SGZ) - g_GyroStabBias[2];
 
 		//
 		// Calculate the calibrated accelerometer data.
@@ -1222,12 +1206,7 @@ void ProcessIMUData(void) {
 	}
 
 	//
-	// Reset the flag
-	g_IMUDataFlag = false;
-
-	//
 	// Reset printing loop count for debugging.
     g_PrintFlag = false;
 
-    IntMasterEnable();
 }

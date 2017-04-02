@@ -9,6 +9,11 @@
  *      Note: These functions assume a time step of DT
  *      	  which is defined in the associated header
  *      	  file. The default setting for DT is 0.01.
+ *
+ *      Portions of this code were derived from TI's
+ *      sensorlib compDCM functions. Additionally, a
+ *      portion of this code was derived from github.
+ *      Credit: https://github.com/Skadi15/Overlord_System/blob/master/sensors/windrose_module.c
  */
 
 
@@ -124,11 +129,16 @@ void UpdateHeading(sAttitudeData *sAttData)
 	// Keep the values between +M_PI and -M_PI.
 	if ((fMagHeading - fGyroHeading) < -M_PI)
 		fMagHeading += 2 * M_PI;
-	else if ((fGyroHeading - fMagHeading) > M_PI)
+	else if ((fMagHeading - fGyroHeading) > M_PI)
 		fGyroHeading += 2 * M_PI;
 
 	//
 	// Update the yaw.
 	sAttData->fYaw = (fMagHeading * (1 - (sAttData->fGyroWeight)) +
 			fGyroHeading * (sAttData->fGyroWeight)) * RAD2DEG;
+
+	//
+	// Keep yaw between 0 and 360 degrees.
+	if (sAttData->fYaw > 360.0f)
+		sAttData->fYaw -= 360.0f;
 }
