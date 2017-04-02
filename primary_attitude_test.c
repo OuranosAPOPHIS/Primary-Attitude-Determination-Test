@@ -50,9 +50,12 @@
 #include "sensors/i2c_driver.h"
 #include "sensors/accel_gyro_cal_data.h"
 
+#include "attitude_estimation.h"
+
+
+
 extern void CustomCompDCMUpdate(tCompDCM *psDCM);
 extern void CustomCompDCMStart(tCompDCM *psDCM);
-extern void InitOrientation(float *accelData, float *magData, float *gyroData, float *EulerAngles);
 
 
 //*****************************************************************************
@@ -289,6 +292,11 @@ float g_fEulerAngles[3] = { 0.0f };
 // Variable to track the frequency of packet sends to GS.
 int32_t g_RadioCount = 0;
 
+//
+// Global structure for attitude estimation.
+sAttitudeData sAttData;
+
+
 //*****************************************************************************
 //
 // Start of program.
@@ -427,6 +435,10 @@ int main(void) {
 		g_Pack.pack.movement = 'F';
 
 	//
+	// Set up the gyro weighting for the attitude estimation.
+	InitAttitude(&sAttData, 0.75);
+
+	//
 	// Before starting program, wait for a button press on either switch.
 	UARTprintf("Initialization Complete!\r\nPress left button to start.\r\n");
 
@@ -467,6 +479,10 @@ int main(void) {
 	//if (g_bDCMStarted == 0)
 	//	TimerEnable(DCM_TIMER, TIMER_A);
 #endif
+
+	//
+	// Initialize the heading.
+	InitHeading(&sAttData);
 
 	//
 	// Print menu.
@@ -1086,6 +1102,10 @@ void ProcessIMUData(void) {
 		g_fMagData[2] = ((i8MagData[2] / g_fMagLSB) - g_MagBias[2]) / 1e6;
 
 		//
+		// Update the mag data in the struct.
+		UpdateMag(&sAttData, g_fMagData[0], g_fMagData[1], g_fMagData[2]);
+
+		//
 		// Blink the LED 1 to indicate sensor is working.
 		if (g_LED1On) {
 			TurnOffLED(1);
@@ -1173,31 +1193,32 @@ void ProcessIMUData(void) {
 				- ((g_fAccelBias[2] - fAccelDataUnCal[2]) * (Sax + Say + Sax*Say - Maxy*Mayx + 1)) / AccelDenominator
 				+ ((g_fAccelBias[1] - fAccelDataUnCal[1]) * (Mazy + Mazy*Sax - Maxy*Mazx)) / AccelDenominator;
 #endif
+
 		//
-		// Calculate roll, pitch and yaw.
-		//g_fEulerAngles[0] = g_fEulerAngles[0] + g_fGyroData[0] * DT;
-		//g_fEulerAngles[1] = g_fEulerAngles[1] + g_fGyroData[1] * DT;
-		//g_fEulerAngles[2] = g_fEulerAngles[2] + g_fGyroData[2] * DT;
+		// Update structure data.
+		UpdateAccel(&sAttData, g_fAccelData[0], g_fAccelData[1], g_fAccelData[2]);
+		UpdateGyro(&sAttData, g_fGyroData[0], g_fGyroData[1], g_fGyroData[2]);
 
-		InitOrientation(&g_fAccelData[0], &g_fMagData[0], &g_fGyroData[0], &g_fEulerAngles[0]);
+		UpdateHeading(&sAttData);
 
-		sStatus.fRoll = g_fEulerAngles[0];
-		sStatus.fPitch = g_fEulerAngles[1];
-		sStatus.fYaw = g_fEulerAngles[2];
+		sStatus.fRoll = sAttData.fRoll;
+		sStatus.fPitch = sAttData.fPitch;
+		sStatus.fYaw = sAttData.fYaw;
 	}
 
 	if (g_PrintRawBMIData && g_PrintFlag)
 	{
-		/*int temp[3] = {(int)g_fEulerAngles[0], (int)g_fEulerAngles[1], (int)g_fEulerAngles[2]};
+		int temp[3] = {(int)g_fEulerAngles[0], (int)g_fEulerAngles[1], (int)g_fEulerAngles[2]};
 		int dec[3] = {(int)(g_fEulerAngles[0] * 100) - (int)(g_fEulerAngles[0]),
 					  (int)(g_fEulerAngles[1] * 100) - (int)(g_fEulerAngles[1]),
 					  (int)(g_fEulerAngles[2] * 100) - (int)(g_fEulerAngles[2])};
 
 		UARTprintf("Pitch: %d.%d\r\n", temp[0], dec[0]);
 		UARTprintf("Roll: %d.%d\r\n", temp[1], dec[1]);
-		UARTprintf("Yaw: %d.%d\r\n", temp[2], dec[2]); */
+		UARTprintf("Yaw: %d.%d\r\n", temp[2], dec[2]);
 
-		UARTprintf("Gyro: %d, %d, %d\r\n", i16GyroData[0], i16GyroData[1], i16GyroData[2]);
+		//
+		//UARTprintf("Gyro: %d, %d, %d\r\n", i16GyroData[0], i16GyroData[1], i16GyroData[2]);
 	}
 
 	//
