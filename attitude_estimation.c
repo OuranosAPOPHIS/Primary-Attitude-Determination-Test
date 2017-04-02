@@ -195,4 +195,44 @@ void UpdateAttitude(sAttitudeData *sAttData)
 	UpdatePitch(sAttData);
 }
 
+/*
+ * UpdateDCM
+ * Parameter(s):
+ * 	*sAttData - Pointer to the sAttitudeData struct defined above.
+ * Purpose:
+ * 	Updates the current DCM based on gyroscope readings.
+ *
+ * Note: This function must use calibrated accel, gyro and mag data.
+ * This function was adapted from Dr. Stephen Bruder's MATLAB code
+ * available on his website.
+ * http://mercury.pr.erau.edu/~bruders/teaching/2017_spring/EE440/lectures/lecture%2016_Inertial_Nav_ECEF.pdf
+ */
+void UpdateDCM(sAttitutdeData *sAttData)
+{
+	//
+	// Skew symmetric matrix.
+	K[3][3] = { 0 };
 
+	//
+	// From Dr. Bruder's MATLAB code, adapted to C.
+	Identity[3][3] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+	//
+	// Compute the skew-symmetric matrix based on the gyroscope data.
+	ComputeSkewMatrix(sAttData, &K);
+
+	//C = I + Sin(theta) K + (1-Cos(theta)) K^2  = Rodrigues formula
+	C = Identity + sin(theta) * K + (1 - cos(theta)) * pow(K, 2);
+}
+
+// K assumed to be a 3x3
+void ComputeSkewMatrix(sAttitudeData *sAttData, float *K);
+{
+	sAttData->fGyroX;
+
+}
+
+void MatrixMultiply3x3(float Out[3][3], float firstThing[3][3], float secondThing[3][3])
+{
+	// do stuff here.
+}
