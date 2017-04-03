@@ -1133,8 +1133,6 @@ void ProcessIMUData(void) {
 		fAccelDataUnCal[2] = (((float) i16AccelData[2]) / ACCELLSB) - BAZ;
 
 		//
-		// Pick a method.
-#if true
 		// Calculate the calibrated gyro data.
 		g_fGyroData[0] = (fGyroDataUnCal[0] * SGX + fGyroDataUnCal[1] * MGXY + fGyroDataUnCal[2] * MGXZ) - g_GyroStabBias[0];
 		g_fGyroData[1] = (fGyroDataUnCal[0] * MGYX + fGyroDataUnCal[1] * SGY + fGyroDataUnCal[2] * MGYZ) - g_GyroStabBias[1];
@@ -1146,43 +1144,27 @@ void ProcessIMUData(void) {
 		g_fAccelData[1] = fAccelDataUnCal[0] * MAYX + fAccelDataUnCal[1] * SAY + fAccelDataUnCal[2] * MAYZ;
 		g_fAccelData[2] = fAccelDataUnCal[0] * MAZX + fAccelDataUnCal[1] * MAZY + fAccelDataUnCal[2] * SAZ;
 
-#else
-		//
-		// Gyro calibration correction.
-		g_fGyroData[0] = ((g_fGyroBias[1] - fGyroDataUnCal[1]) * (Mgxy + Mgxy*Sgz - Mgxz*Mgzy)) / GyroDenominator
-						- ((g_fGyroBias[0] - fGyroDataUnCal[0])*(Sgy + Sgz + Sgy*Sgz - Mgyz*Mgzy + 1)) / GyroDenominator
-						+ ((g_fGyroBias[2] - fGyroDataUnCal[2])*(Mgxz + Mgxz*Sgy - Mgxy*Mgyz)) / GyroDenominator;
-
-		g_fGyroData[1] = ((g_fGyroBias[0] - fGyroDataUnCal[0]) * (Mgyx + Mgyx*Sgz - Mgyz*Mgzx)) / GyroDenominator
-				- ((g_fGyroBias[1] - fGyroDataUnCal[1])*(Sgx + Sgz + Sgx*Sgz - Mgxz*Mgzx + 1)) / GyroDenominator
-				+ ((g_fGyroBias[2] - fGyroDataUnCal[2]) * (Mgyz + Mgyz*Sgx - Mgxz*Mgyx)) / GyroDenominator;
-
-		g_fGyroData[2] = ((g_fGyroBias[0] - fGyroDataUnCal[0]) * (Mgzx + Mgzx*Sgy - Mgyx*Mgzy)) / GyroDenominator
-				- ((g_fGyroBias[2] - fGyroDataUnCal[2]) * (Sgx + Sgy + Sgx*Sgy - Mgxy*Mgyx + 1)) / GyroDenominator
-				+ ((g_fGyroBias[1] - fGyroDataUnCal[1]) * (Mgzy + Mgzy*Sgx - Mgxy*Mgzx)) / GyroDenominator;
-
-		//
-		// Accelerometer calibration correction.
-		g_fAccelData[0] = ((g_fAccelBias[1] - fAccelDataUnCal[1]) * (Maxy + Maxy*Saz - Maxz*Mazy)) / AccelDenominator
-				- ((g_fAccelBias[0] - fAccelDataUnCal[0])*(Say + Saz + Say*Saz - Mayz*Mazy + 1)) / AccelDenominator
-				+ ((g_fAccelBias[2] - fAccelDataUnCal[2])*(Maxz + Maxz*Say - Maxy*Mayz)) / AccelDenominator;
-
-		g_fAccelData[1] = ((g_fAccelBias[0] - fAccelDataUnCal[0]) * (Mayx + Mayx*Saz - Mayz*Mazx)) / AccelDenominator
-				- ((g_fAccelBias[1] - fAccelDataUnCal[1])*(Sax + Saz + Sax*Saz - Maxz*Mazx + 1)) / AccelDenominator
-				+ ((g_fAccelBias[2] - fAccelDataUnCal[2]) * (Mayz + Mayz*Sax - Maxz*Mayx)) / AccelDenominator;
-
-		g_fAccelData[2] = ((g_fAccelBias[0] - fAccelDataUnCal[0]) * (Mazx + Mazx*Say - Mayx*Mazy)) / AccelDenominator
-				- ((g_fAccelBias[2] - fAccelDataUnCal[2]) * (Sax + Say + Sax*Say - Maxy*Mayx + 1)) / AccelDenominator
-				+ ((g_fAccelBias[1] - fAccelDataUnCal[1]) * (Mazy + Mazy*Sax - Maxy*Mazx)) / AccelDenominator;
-#endif
-
 		//
 		// Update structure data.
 		UpdateAccel(&sAttData, g_fAccelData[0], g_fAccelData[1], g_fAccelData[2]);
 		UpdateGyro(&sAttData, g_fGyroData[0], g_fGyroData[1], g_fGyroData[2]);
 
-		UpdateYaw(&sAttData);
+#if true
+		//
+		// static update.
+		StaticUpdateAttitude(&sAttData);
+#else
+		//
+		// dynamic update.
+		DynamicUpdateAttitude(&sAttData);
+#endif
 
+		//
+		// Update the Euler Angles.
+		UpdateEulers(&sAttData);
+
+		//
+		// Assign the values.
 		sStatus.fRoll = sAttData.fRoll;
 		sStatus.fPitch = sAttData.fPitch;
 		sStatus.fYaw = sAttData.fYaw;

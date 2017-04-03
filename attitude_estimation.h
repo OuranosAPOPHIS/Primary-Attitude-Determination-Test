@@ -20,6 +20,7 @@
 //
 //****************************************************************************************
 typedef struct {
+    float fDCM[3][3];
 	float fAccelX;
 	float fAccelY;
 	float fAccelZ;
@@ -46,8 +47,12 @@ void UpdateGyro(sAttitudeData *sAttData, float fGyroX, float fGyroY, float fGyro
 void UpdateMag(sAttitudeData *sAttData, float fMagX, float fMagY, float fMagZ);
 void InitHeading(sAttitudeData *sAttData);
 void UpdateYaw(sAttitudeData *sAttData);
-void UpdateRoll(sAttitudeData *sAttData);
-void UpdatePitch(sAttitudeData *sAttData);
-void UpdateAttitude(sAttitudeData *sAttData);
+void StaticUpdateAttitude(sAttitudeData *sAttData);
+void DynamicUpdateAttitude(sAttitudeData *sAttData);
+void UpdateEulers(sAttitudeData *sAttData);
+void ComputeSkewMatrix(float fGyroVecNorm[3], float K[3][3]);
+void MatrixMultiply3x3(float fProduct[3][3], float fA[3][3], float fB[3][3]);
+void MatrixAdd3x3(float fSum[3][3], float fA[3][3], float fB[3][3]);
+void MatrixScale3x3(float fProduct[3][3], float fMatrix[3][3], float fScalar);
 
 #endif /* ATTITUDE_ESTIMATION_H_ */
