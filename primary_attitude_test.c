@@ -233,6 +233,9 @@ int32_t g_RadioCount = 0;
 // Global structure for attitude estimation.
 sAttitudeData sAttData;
 
+//
+// Variable to track when to use static vs. dynamic case. 
+bool g_FirstTime = true;
 
 //*****************************************************************************
 //
@@ -1096,15 +1099,18 @@ void ProcessIMUData(void) {
 		UpdateAccel(&sAttData, g_fAccelData[0], g_fAccelData[1], g_fAccelData[2]);
 		UpdateGyro(&sAttData, g_fGyroData[0], g_fGyroData[1], g_fGyroData[2]);
 
-#if 
-		//
-		// static update.
-		StaticUpdateAttitude(&sAttData);
-#else
-		//
-		// dynamic update.
-		DynamicUpdateAttitude(&sAttData);
-#endif
+		if (g_FirstTime) {
+            //
+            // static update.
+            StaticUpdateAttitude(&sAttData);
+            g_firstTime = false;
+		}
+		else {
+	        //
+	        // dynamic update.
+	        DynamicUpdateAttitude(&sAttData);
+		}
+
 
 		//
 		// Update the Euler Angles.
