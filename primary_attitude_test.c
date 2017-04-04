@@ -223,51 +223,6 @@ bool g_loopCount = false;
 // 9.81 m/s^2 by the LSB/g / 2. e.g. 9.81 / 8192 = 0.00119750976
 float g_Accel2GFactor = 0.00119750976;
 
-//
-// In this block, input the calibration values from IMU_Calibration.m
-// Abby's attempt at adding scale factors and misalignment terms to calibration of gyro and accel data.
-// Gyro Misalignment and Scale Factor terms are input from IMU_Calibration.m
-
-//
-// Same attempt, but with the accelerometer calibration.
-// Accel Misalignment and Scale Factor terms are input from IMU_Calibration.m
-float Maxy = 0.000054;
-float Maxz = 0.003327;
-float Mayx = 0.001232;
-float Mayz = 0.000702;
-float Mazx = -0.000489;
-float Mazy = -0.000695;
-
-float Sax = -0.897553;
-float Say = -0.898100;
-float Saz = -0.896859;
-
-float AccelDenominator;
-
-float g_fAccelBias[3] = {-0.038635,
-                         0.053467,
-                        -0.031036};
-
-//
-// Gyro misalignment terms.
-float Mgxy = -0.009604;
-float Mgxz = 0.001334;
-float Mgyx = -0.070655;
-float Mgyz = 0.030030;
-float Mgzx = 0.088605;
-float Mgzy = -0.122447;
-
-float Sgx = 0.040777;
-float Sgy = -0.005831;
-float Sgz = -0.003430;
-
-float g_fGyroBias[3] = { 0.043825,
-                         0.094322,
-                        -0.200075} ;
-
-// Common Denominator for gyro.
-float GyroDenominator;
-
 float g_fEulerAngles[3] = { 0.0f };
 
 //
@@ -309,14 +264,6 @@ int main(void) {
 	g_SysClockSpeed = SysCtlClockFreqSet(SYSCTL_USE_OSC | SYSCTL_OSC_MAIN |
 			SYSCTL_XTAL_16MHZ, 16000000);
 #endif
-
-	//
-	// Calculate the divisor for the accel and gyro.
-	GyroDenominator = (Sgx + Sgy + Sgz + Sgx*Sgy + Sgx*Sgz + Sgy*Sgz - Mgxy*Mgyx - Mgxz*Mgzx - Mgyz*Mgzy +
-			Mgxy*Mgyz*Mgzx + Mgxz*Mgyx*Mgzy - Mgxy*Mgyx*Sgz - Mgxz*Mgzx*Sgy - Mgyz*Mgzy*Sgx + Sgx*Sgy*Sgz + 1);
-
-	AccelDenominator = (Sax + Say + Saz + Sax*Say + Sax*Saz + Say*Saz - Maxy*Mayx - Maxz*Mazx - Mayz*Mazy +
-			Maxy*Mayz*Mazx + Maxz*Mayx*Mazy - Maxy*Mayx*Saz - Maxz*Mazx*Say - Mayz*Mazy*Sax + Sax*Say*Saz + 1);
 
 	//
 	// Disable interrupts during initialization period.
@@ -1149,7 +1096,7 @@ void ProcessIMUData(void) {
 		UpdateAccel(&sAttData, g_fAccelData[0], g_fAccelData[1], g_fAccelData[2]);
 		UpdateGyro(&sAttData, g_fGyroData[0], g_fGyroData[1], g_fGyroData[2]);
 
-#if true
+#if 
 		//
 		// static update.
 		StaticUpdateAttitude(&sAttData);

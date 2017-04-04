@@ -107,7 +107,12 @@ void UpdateMag(sAttitudeData *sAttData, float fMagX, float fMagY, float fMagZ)
  */
 void InitHeading(sAttitudeData *sAttData)
 {
-    sAttData->fYaw = atan2(-sAttData->fMagY, sAttData->fMagX);
+    /*
+     * Normally, initialize Yaw as magnetometer reading.
+     * sAttData->fYaw = atan2(-sAttData->fMagY, sAttData->fMagX);
+     * For purpose of IMU validation on 3-axis rotation table, initialize yaw as 0.
+     */
+    sAttData->fYaw = 0.0f;
 }
 
 /*
@@ -130,7 +135,12 @@ void UpdateYaw(sAttitudeData *sAttData)
 
     //
     // Get the mag heading in radians.
-    fMagHeading = atan2(-sAttData->fMagY, sAttData->fMagX);
+    /*
+     * Normally, update Yaw based on magnetometer reading.
+     * fMagHeading = atan2(-sAttData->fMagY, sAttData->fMagX);
+     * For purpose of IMU validation on 3-axis rotation table, update yaw using DynamicUpdateAttitude
+     */
+    fMagHeading = 0.0f;
 
     //
     // Check for negative mag values.
@@ -156,6 +166,7 @@ void UpdateYaw(sAttitudeData *sAttData)
 }
 
 /*
+ * StaticUpdateAttitude
  * Update the attitude based on the sensor readings.
  * Parameter(s):
  *  *sAttData - pointer to the attitude data structure as defined above.
@@ -169,9 +180,16 @@ void StaticUpdateAttitude(sAttitudeData *sAttData)
 
     //
     // The magnetometer reading forms the initial I vector, pointing north.
-    pfI[0] = sAttData->fMagX;
-    pfI[1] = sAttData->fMagY;
-    pfI[2] = sAttData->fMagZ;
+    /*
+     * Normally, initialize Yaw as magnetometer reading.
+     * pfI[0] = sAttData->fMagX;
+     * pfI[1] = sAttData->fMagY;
+     * pfI[2] = sAttData->fMagZ;
+     * For purpose of IMU validation on 3-axis rotation table, initialize I as [1;0;0].
+     */
+    pfI[0] = sAttData->1.0f;
+    pfI[1] = sAttData->0.0f;
+    pfI[2] = sAttData->0.0f;
 
     //
     // The accelerometer reading forms the initial K vector, pointing down.
@@ -304,18 +322,19 @@ void UpdateEulers(sAttitudeData *sAttData)
 }
 
 /*
- * UpdateRoll
+ * ComputeSkewMatrix
  * Parameter(s):
- *  *sAttData - Pointer to the sAttitudeData struct defined above.
+ *  fGyroVecNorm[3] INPUT 3x1 normalized vector of Gyro Measurements
+ *  K[3][3] OUTPUT 3x3 skew matrix of normalized gyro readings
  * Purpose:
- *  Updates the current roll based on accelerometer and gyroscope readings.
- *
+ *  Computes skew matrix for DCM propagation as a function of gyro readings
+ 
  * Note: This function must use calibrated accel and gyro data.
+ * This function is adapted from Dr. Bruder's MATLAB code, vec2ss
+ * http://mercury.pr.erau.edu/~bruders/teaching/2017_spring/EE440/
  */
 void ComputeSkewMatrix(float fGyroVecNorm[3], float K[3][3])
 {
-    //
-    // From Dr. Bruder's MATLAB code, vec2ss, adapted to C.
 	K[0][0] = 0;
 	K[0][1] = -fGyroVecNorm[2];
     K[0][2] = fGyroVecNorm[1];
@@ -328,13 +347,15 @@ void ComputeSkewMatrix(float fGyroVecNorm[3], float K[3][3])
 }
 
 /*
- * UpdateRoll
+ * MatrixMultiply3x3
  * Parameter(s):
- *  *sAttData - Pointer to the sAttitudeData struct defined above.
+ *  fProduct[3][3] OUTPUT 3x3 matrix product
+ *  fA[3][3] INPUT 3x3 matrix on the left
+ *  fB[3][3] INPUT 3x3 matrix on the right
+ *  
  * Purpose:
- *  Updates the current roll based on accelerometer and gyroscope readings.
+ *  Matrix mulitplication of two matrices that are both 3x3
  *
- * Note: This function must use calibrated accel and gyro data.
  */
 void MatrixMultiply3x3(float fProduct[3][3], float fA[3][3], float fB[3][3])
 {
@@ -353,11 +374,11 @@ void MatrixMultiply3x3(float fProduct[3][3], float fA[3][3], float fB[3][3])
 /*
  * 3x3 Matrix Addition.
  * Parameter(s):
- *  *sAttData - Pointer to the sAttitudeData struct defined above.
- * Purpose:
- *  Updates the current roll based on accelerometer and gyroscope readings.
- *
- * Note: This function must use calibrated accel and gyro data.
+ *  fSum[3][3] OUTPUT 3x3 matrix sum
+ *  fA[3][3] INPUT 3x3 matrix on the left
+ *  fB[3][3] INPUT 3x3 matrix on the right 
+ *  Purpose:
+ *  Performs matrix addition of two matrices that are both 3x3
  */
 void MatrixAdd3x3(float fSum[3][3], float fA[3][3], float fB[3][3])
 {
@@ -375,9 +396,13 @@ void MatrixAdd3x3(float fSum[3][3], float fA[3][3], float fB[3][3])
 /*
  * 3x3 Matrix Scalar Multiplication.
  * Parameter(s):
- *  *sAttData - Pointer to the sAttitudeData struct defined above.
+ *  fProduct[3][3] OUTPUT 3x3 matrix product
+ *  fMatrix[3][3] INPUT 3x3 matrix 
+ *  fScalar INPUT scalar matrix multiplier
+ *  
  * Purpose:
- * 3x3 Matrix - Scalar multiplication
+ *  Scalar mulitplication of a 3x3 matrix
+ *
  */
 void MatrixScale3x3(float fProduct[3][3], float fMatrix[3][3], float fScalar)
 {
