@@ -1,24 +1,47 @@
 %% IMU Validation
 
-% Import Calibration data. 
+% Import Log File from Validation Test.
 
-load('IMU_Calibration_Data')
+test_data = csvread('GSDataLogVTest4_4.csv',3,14);
 
-% Import Log Files from Validation Test.
+%% Post-Processing of Roll and Pitch Measurements
 
-test_data = csvread('GSDataLog.csv',3,5);
+roll = test_data(:,1);
+% measured roll during validation test
 
-%% Post-Processing of Accel and Gryo Measurements
+pitch = test_data(:,2);
+% measured pitch during validation test
 
-A_xyz_v = test_data(:,1:3);
-% measured accelerations during validation test
+%% Vectors of Angles Tested
 
-W_xyz_v = test_data(:,4:6);
-% measured angular velocities during validation test
+x = linspace(0,length(roll),1001);
+yp5p = 5.*ones(size(x))+0.5;
+yp5n = 5.*ones(size(x))-0.5;
+yp15p = 15.*ones(size(x))+0.5;
+yp15n = 15.*ones(size(x))-0.5;
+yp30p = 30.*ones(size(x))+0.5;
+yp30n = 30.*ones(size(x))-0.5;
+yn5p = -5.*ones(size(x))+0.5;
+yn5n = -5.*ones(size(x))-0.5;
+yn15p = -15.*ones(size(x))+0.5;
+yn15n = -15.*ones(size(x))-0.5;
+yn30p = -30.*ones(size(x))+0.5;
+yn30n = -30.*ones(size(x))-0.5;
 
-Paccel = asind(A_xyz_v(:,1));
-% estimated pitch from accelerometer reading
+figure
+hold on
+title('Roll')
+xlabel('Sample')
+ylabel('Roll (\circ)')
+plot(roll,'.k')
+plot(x,yp5p,x,yp15p,x,yp30p,x,yn30p,x,yn15p,x,yn5p)
+plot(x,yp5n,x,yp15n,x,yp30n,x,yn30n,x,yn15n,x,yn5n)
 
-Raccel = atan2d(A_xyz_v(:,2),A_xyz_v(:,3));
-% estimated roll from accelerometer reading
-
+figure
+hold on
+title('Pitch')
+xlabel('Sample')
+ylabel('Pitch (\circ)')
+plot(pitch,'.k')
+plot(x,yp5p,x,yp15p,x,yp30p,x,yn30p,x,yn15p,x,yn5p)
+plot(x,yp5n,x,yp15n,x,yp30n,x,yn30n,x,yn15n,x,yn5n)
