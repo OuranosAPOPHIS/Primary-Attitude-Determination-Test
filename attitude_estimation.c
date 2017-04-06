@@ -254,7 +254,8 @@ void DynamicUpdateAttitude(sAttitudeData *sAttData)
 
 	//
 	// Create vector of gyroscope readings.
-	float fGyroVec[3] = {sAttData->fGyroX,sAttData->fGyroY,sAttData->fGyroZ};
+	float fGyroVec[3] = {DEG2RAD*sAttData->fGyroX,DEG2RAD*sAttData->fGyroY,DEG2RAD*sAttData->fGyroZ};
+	
 
     //
     // Identity + sin(Theta).
