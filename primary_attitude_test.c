@@ -1103,7 +1103,7 @@ void ProcessIMUData(void) {
             //
             // static update.
             StaticUpdateAttitude(&sAttData);
-            g_firstTime = false;
+            g_FirstTime = false;
 		}
 		else {
 	        //

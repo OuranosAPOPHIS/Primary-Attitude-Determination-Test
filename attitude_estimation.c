@@ -22,7 +22,9 @@
 #include "sensorlib/vector.h"
 
 #include "attitude_estimation.h"
-
+//
+// Time step for the control law.
+#define DT 0.01
 /*
  * Initialize the attitude.
  * Parameter(s):
@@ -187,9 +189,9 @@ void StaticUpdateAttitude(sAttitudeData *sAttData)
      * pfI[2] = sAttData->fMagZ;
      * For purpose of IMU validation on 3-axis rotation table, initialize I as [1;0;0].
      */
-    pfI[0] = sAttData->1.0f;
-    pfI[1] = sAttData->0.0f;
-    pfI[2] = sAttData->0.0f;
+    pfI[0] = 1.0f;
+    pfI[1] = 0.0f;
+    pfI[2] = 0.0f;
 
     //
     // The accelerometer reading forms the initial K vector, pointing down.
@@ -225,6 +227,10 @@ void StaticUpdateAttitude(sAttitudeData *sAttData)
     sAttData->fDCM[2][0] = pfK[0];
     sAttData->fDCM[2][1] = pfK[1];
     sAttData->fDCM[2][2] = pfK[2];
+
+    sAttData->fGyroXPast = sAttData->fGyroX;
+    sAttData->fGyroYPast = sAttData->fGyroY;
+    sAttData->fGyroZPast = sAttData->fGyroZ;
 }
 
 /*
@@ -243,8 +249,10 @@ void DynamicUpdateAttitude(sAttitudeData *sAttData)
 {
     float C[3][3] = { 0 };
     float fGyroVecNorm[3] = { 0 };
+    float AMatrix[3][3] = { 0 };
+    float IMatrix[3][3] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f };
 
-	//
+    //
 	// Skew symmetric matrix.
 	float K[3][3] = { 0 };
 
@@ -254,14 +262,21 @@ void DynamicUpdateAttitude(sAttitudeData *sAttData)
 
 	//
 	// Create vector of gyroscope readings.
-	float fGyroVec[3] = {DEG2RAD*sAttData->fGyroX,DEG2RAD*sAttData->fGyroY,DEG2RAD*sAttData->fGyroZ};
+	float fGyroVec[3] = {DEG2RAD*((sAttData->fGyroX)-sAttData->fGyroXPast)*DT,
+	                     DEG2RAD*((sAttData->fGyroY)-sAttData->fGyroYPast)*DT,
+	                     DEG2RAD*((sAttData->fGyroZ)-sAttData->fGyroZPast)*DT};
 	
+	//
+	// Compute sin(theta)
+	float fAScalar = sin(sqrtf(VectorDotProduct(fGyroVec, fGyroVec)));
+
+	//
+	// Compute sin(theta)*K
+	MatrixScale3x3(AMatrix, K, fAScalar);
 
     //
-    // Identity + sin(Theta).
-    float Amatrix[3][3] = {sin(sqrtf(VectorDotProduct(fGyroVec, fGyroVec))) + 1, 0, 0,
-               0, sin(sqrtf(VectorDotProduct(fGyroVec, fGyroVec))) + 1, 0,
-               0 , 0, sin(sqrtf(VectorDotProduct(fGyroVec, fGyroVec))) + 1};
+    // Identity + sin(Theta)*K.
+	MatrixAdd3x3(C, AMatrix, IMatrix);
 
     //
     // 1 - cos(Theta).
@@ -269,7 +284,7 @@ void DynamicUpdateAttitude(sAttitudeData *sAttData)
 
 	//
 	// Normalized vector of gyroscope data.
-	VectorScale(fGyroVecNorm, fGyroVec ,1 / sqrtf(VectorDotProduct(fGyroVec, fGyroVec)));
+	VectorScale(fGyroVecNorm, fGyroVec,1 / sqrtf(VectorDotProduct(fGyroVec, fGyroVec)));
 
 	//
 	// Compute the skew-symmetric matrix based on the gyroscope data.
@@ -282,16 +297,16 @@ void DynamicUpdateAttitude(sAttitudeData *sAttData)
 	//
 	// Compute the Rodrigues Formula
 	//C = I + Sin(theta) K + (1-Cos(theta)) K^2  = Rodrigues formula
-	MatrixMultiply3x3(C, Amatrix, K);
-
-	//
-	// Finish computing C.
 	MatrixScale3x3(K2, K2, Bscalar);
 	MatrixAdd3x3(C, C, K2);
 
 	//
 	// Take the DCM update matrix and update the current DCM.
 	MatrixMultiply3x3(sAttData->fDCM, C, sAttData->fDCM);
+
+	sAttData->fGyroXPast = sAttData->fGyroX;
+	sAttData->fGyroYPast = sAttData->fGyroY;
+	sAttData->fGyroZPast = sAttData->fGyroZ;
 }
 
 /*

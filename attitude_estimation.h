@@ -34,6 +34,9 @@ typedef struct {
 	float fRoll;
 	float fYaw;
 	float fGyroWeight;
+	float fGyroXPast;
+	float fGyroYPast;
+	float fGyroZPast;
 } sAttitudeData;
 
 //****************************************************************************************
