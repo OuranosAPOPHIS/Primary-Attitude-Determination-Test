@@ -227,10 +227,6 @@ void StaticUpdateAttitude(sAttitudeData *sAttData)
     sAttData->fDCM[2][0] = pfK[0];
     sAttData->fDCM[2][1] = pfK[1];
     sAttData->fDCM[2][2] = pfK[2];
-
-    sAttData->fGyroXPast = sAttData->fGyroX;
-    sAttData->fGyroYPast = sAttData->fGyroY;
-    sAttData->fGyroZPast = sAttData->fGyroZ;
 }
 
 /*
@@ -262,9 +258,9 @@ void DynamicUpdateAttitude(sAttitudeData *sAttData)
 
 	//
 	// Create vector of gyroscope readings.
-	float fGyroVec[3] = {DEG2RAD*((sAttData->fGyroX)-sAttData->fGyroXPast)*DT,
-	                     DEG2RAD*((sAttData->fGyroY)-sAttData->fGyroYPast)*DT,
-	                     DEG2RAD*((sAttData->fGyroZ)-sAttData->fGyroZPast)*DT};
+	float fGyroVec[3] = {DEG2RAD*((sAttData->fGyroX))*DT,
+	                     DEG2RAD*((sAttData->fGyroY))*DT,
+	                     DEG2RAD*((sAttData->fGyroZ))*DT};
 	
 	//
 	// Compute sin(theta)
@@ -303,10 +299,6 @@ void DynamicUpdateAttitude(sAttitudeData *sAttData)
 	//
 	// Take the DCM update matrix and update the current DCM.
 	MatrixMultiply3x3(sAttData->fDCM, C, sAttData->fDCM);
-
-	sAttData->fGyroXPast = sAttData->fGyroX;
-	sAttData->fGyroYPast = sAttData->fGyroY;
-	sAttData->fGyroZPast = sAttData->fGyroZ;
 }
 
 /*
