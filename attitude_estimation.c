@@ -258,13 +258,20 @@ void DynamicUpdateAttitude(sAttitudeData *sAttData)
 
 	//
 	// Create vector of gyroscope readings.
-	float fGyroVec[3] = {DEG2RAD*((sAttData->fGyroX))*DT,
-	                     DEG2RAD*((sAttData->fGyroY))*DT,
-	                     DEG2RAD*((sAttData->fGyroZ))*DT};
-	
+	float fGyroVec[3] = {DEG2RAD*((sAttData->fGyroX)),
+	                     DEG2RAD*((sAttData->fGyroY)),
+	                     DEG2RAD*((sAttData->fGyroZ))};
+    //
+    // Compute sin(theta)
+    float fAScalar = sin(DT * sqrtf(VectorDotProduct(fGyroVec, fGyroVec)));
+
 	//
-	// Compute sin(theta)
-	float fAScalar = sin(sqrtf(VectorDotProduct(fGyroVec, fGyroVec)));
+	// Normalized vector of gyroscope data.
+	VectorScale(fGyroVecNorm, fGyroVec,1 / sqrtf(VectorDotProduct(fGyroVec, fGyroVec)));
+
+	//
+	// Compute the skew-symmetric matrix based on the gyroscope data.
+	ComputeSkewMatrix(fGyroVecNorm, K);
 
 	//
 	// Compute sin(theta)*K
@@ -276,15 +283,7 @@ void DynamicUpdateAttitude(sAttitudeData *sAttData)
 
     //
     // 1 - cos(Theta).
-    float Bscalar = (1 - cos(sqrtf(VectorDotProduct(fGyroVec, fGyroVec))));
-
-	//
-	// Normalized vector of gyroscope data.
-	VectorScale(fGyroVecNorm, fGyroVec,1 / sqrtf(VectorDotProduct(fGyroVec, fGyroVec)));
-
-	//
-	// Compute the skew-symmetric matrix based on the gyroscope data.
-	ComputeSkewMatrix(fGyroVecNorm, K);
+    float Bscalar = (1 - cos(DT * sqrtf(VectorDotProduct(fGyroVec, fGyroVec))));
 
 	//
 	// Compute the square of the skew-symmetric matrix.
@@ -298,7 +297,7 @@ void DynamicUpdateAttitude(sAttitudeData *sAttData)
 
 	//
 	// Take the DCM update matrix and update the current DCM.
-	MatrixMultiply3x3(sAttData->fDCM, C, sAttData->fDCM);
+	MatrixMultiply3x3(sAttData->fDCM, sAttData->fDCM, C);
 }
 
 /*
