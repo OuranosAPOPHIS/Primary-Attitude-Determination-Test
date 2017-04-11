@@ -223,51 +223,6 @@ bool g_loopCount = false;
 // 9.81 m/s^2 by the LSB/g / 2. e.g. 9.81 / 8192 = 0.00119750976
 float g_Accel2GFactor = 0.00119750976;
 
-//
-// In this block, input the calibration values from IMU_Calibration.m
-// Abby's attempt at adding scale factors and misalignment terms to calibration of gyro and accel data.
-// Gyro Misalignment and Scale Factor terms are input from IMU_Calibration.m
-
-//
-// Same attempt, but with the accelerometer calibration.
-// Accel Misalignment and Scale Factor terms are input from IMU_Calibration.m
-float Maxy = 0.000054;
-float Maxz = 0.003327;
-float Mayx = 0.001232;
-float Mayz = 0.000702;
-float Mazx = -0.000489;
-float Mazy = -0.000695;
-
-float Sax = -0.897553;
-float Say = -0.898100;
-float Saz = -0.896859;
-
-float AccelDenominator;
-
-float g_fAccelBias[3] = {-0.038635,
-                         0.053467,
-                        -0.031036};
-
-//
-// Gyro misalignment terms.
-float Mgxy = -0.009604;
-float Mgxz = 0.001334;
-float Mgyx = -0.070655;
-float Mgyz = 0.030030;
-float Mgzx = 0.088605;
-float Mgzy = -0.122447;
-
-float Sgx = 0.040777;
-float Sgy = -0.005831;
-float Sgz = -0.003430;
-
-float g_fGyroBias[3] = { 0.043825,
-                         0.094322,
-                        -0.200075} ;
-
-// Common Denominator for gyro.
-float GyroDenominator;
-
 float g_fEulerAngles[3] = { 0.0f };
 
 //
@@ -278,6 +233,9 @@ int32_t g_RadioCount = 0;
 // Global structure for attitude estimation.
 sAttitudeData sAttData;
 
+//
+// Variable to track when to use static vs. dynamic case. 
+bool g_FirstTime = true;
 
 //*****************************************************************************
 //
@@ -309,14 +267,6 @@ int main(void) {
 	g_SysClockSpeed = SysCtlClockFreqSet(SYSCTL_USE_OSC | SYSCTL_OSC_MAIN |
 			SYSCTL_XTAL_16MHZ, 16000000);
 #endif
-
-	//
-	// Calculate the divisor for the accel and gyro.
-	GyroDenominator = (Sgx + Sgy + Sgz + Sgx*Sgy + Sgx*Sgz + Sgy*Sgz - Mgxy*Mgyx - Mgxz*Mgzx - Mgyz*Mgzy +
-			Mgxy*Mgyz*Mgzx + Mgxz*Mgyx*Mgzy - Mgxy*Mgyx*Sgz - Mgxz*Mgzx*Sgy - Mgyz*Mgzy*Sgx + Sgx*Sgy*Sgz + 1);
-
-	AccelDenominator = (Sax + Say + Saz + Sax*Say + Sax*Saz + Say*Saz - Maxy*Mayx - Maxz*Mazx - Mayz*Mazy +
-			Maxy*Mayz*Mazx + Maxz*Mayx*Mazy - Maxy*Mayx*Saz - Maxz*Mazx*Say - Mayz*Mazy*Sax + Sax*Say*Saz + 1);
 
 	//
 	// Disable interrupts during initialization period.
@@ -1133,8 +1083,6 @@ void ProcessIMUData(void) {
 		fAccelDataUnCal[2] = (((float) i16AccelData[2]) / ACCELLSB) - BAZ;
 
 		//
-		// Pick a method.
-#if true
 		// Calculate the calibrated gyro data.
 		g_fGyroData[0] = (fGyroDataUnCal[0] * SGX + fGyroDataUnCal[1] * MGXY + fGyroDataUnCal[2] * MGXZ) - g_GyroStabBias[0];
 		g_fGyroData[1] = (fGyroDataUnCal[0] * MGYX + fGyroDataUnCal[1] * SGY + fGyroDataUnCal[2] * MGYZ) - g_GyroStabBias[1];
@@ -1146,43 +1094,30 @@ void ProcessIMUData(void) {
 		g_fAccelData[1] = fAccelDataUnCal[0] * MAYX + fAccelDataUnCal[1] * SAY + fAccelDataUnCal[2] * MAYZ;
 		g_fAccelData[2] = fAccelDataUnCal[0] * MAZX + fAccelDataUnCal[1] * MAZY + fAccelDataUnCal[2] * SAZ;
 
-#else
-		//
-		// Gyro calibration correction.
-		g_fGyroData[0] = ((g_fGyroBias[1] - fGyroDataUnCal[1]) * (Mgxy + Mgxy*Sgz - Mgxz*Mgzy)) / GyroDenominator
-						- ((g_fGyroBias[0] - fGyroDataUnCal[0])*(Sgy + Sgz + Sgy*Sgz - Mgyz*Mgzy + 1)) / GyroDenominator
-						+ ((g_fGyroBias[2] - fGyroDataUnCal[2])*(Mgxz + Mgxz*Sgy - Mgxy*Mgyz)) / GyroDenominator;
-
-		g_fGyroData[1] = ((g_fGyroBias[0] - fGyroDataUnCal[0]) * (Mgyx + Mgyx*Sgz - Mgyz*Mgzx)) / GyroDenominator
-				- ((g_fGyroBias[1] - fGyroDataUnCal[1])*(Sgx + Sgz + Sgx*Sgz - Mgxz*Mgzx + 1)) / GyroDenominator
-				+ ((g_fGyroBias[2] - fGyroDataUnCal[2]) * (Mgyz + Mgyz*Sgx - Mgxz*Mgyx)) / GyroDenominator;
-
-		g_fGyroData[2] = ((g_fGyroBias[0] - fGyroDataUnCal[0]) * (Mgzx + Mgzx*Sgy - Mgyx*Mgzy)) / GyroDenominator
-				- ((g_fGyroBias[2] - fGyroDataUnCal[2]) * (Sgx + Sgy + Sgx*Sgy - Mgxy*Mgyx + 1)) / GyroDenominator
-				+ ((g_fGyroBias[1] - fGyroDataUnCal[1]) * (Mgzy + Mgzy*Sgx - Mgxy*Mgzx)) / GyroDenominator;
-
-		//
-		// Accelerometer calibration correction.
-		g_fAccelData[0] = ((g_fAccelBias[1] - fAccelDataUnCal[1]) * (Maxy + Maxy*Saz - Maxz*Mazy)) / AccelDenominator
-				- ((g_fAccelBias[0] - fAccelDataUnCal[0])*(Say + Saz + Say*Saz - Mayz*Mazy + 1)) / AccelDenominator
-				+ ((g_fAccelBias[2] - fAccelDataUnCal[2])*(Maxz + Maxz*Say - Maxy*Mayz)) / AccelDenominator;
-
-		g_fAccelData[1] = ((g_fAccelBias[0] - fAccelDataUnCal[0]) * (Mayx + Mayx*Saz - Mayz*Mazx)) / AccelDenominator
-				- ((g_fAccelBias[1] - fAccelDataUnCal[1])*(Sax + Saz + Sax*Saz - Maxz*Mazx + 1)) / AccelDenominator
-				+ ((g_fAccelBias[2] - fAccelDataUnCal[2]) * (Mayz + Mayz*Sax - Maxz*Mayx)) / AccelDenominator;
-
-		g_fAccelData[2] = ((g_fAccelBias[0] - fAccelDataUnCal[0]) * (Mazx + Mazx*Say - Mayx*Mazy)) / AccelDenominator
-				- ((g_fAccelBias[2] - fAccelDataUnCal[2]) * (Sax + Say + Sax*Say - Maxy*Mayx + 1)) / AccelDenominator
-				+ ((g_fAccelBias[1] - fAccelDataUnCal[1]) * (Mazy + Mazy*Sax - Maxy*Mazx)) / AccelDenominator;
-#endif
-
 		//
 		// Update structure data.
 		UpdateAccel(&sAttData, g_fAccelData[0], g_fAccelData[1], g_fAccelData[2]);
 		UpdateGyro(&sAttData, g_fGyroData[0], g_fGyroData[1], g_fGyroData[2]);
 
-		UpdateYaw(&sAttData);
+		if (g_FirstTime) {
+            //
+            // static update.
+            StaticUpdateAttitude(&sAttData);
+            g_FirstTime = false;
+		}
+		else {
+	        //
+	        // dynamic update.
+	        DynamicUpdateAttitude(&sAttData);
+		}
 
+
+		//
+		// Update the Euler Angles.
+		UpdateEulers(&sAttData);
+
+		//
+		// Assign the values.
 		sStatus.fRoll = sAttData.fRoll;
 		sStatus.fPitch = sAttData.fPitch;
 		sStatus.fYaw = sAttData.fYaw;
