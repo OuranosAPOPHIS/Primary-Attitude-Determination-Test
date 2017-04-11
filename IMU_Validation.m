@@ -6,7 +6,7 @@ load('IMU_Calibration_Data')
 
 % Import Log Files from Validation Test.
 
-test_data = csvread('GSDataLog.csv',3,5);
+test_data = csvread('GSDataLog(validationtest).csv',3,5);
 
 %% Post-Processing of Accel and Gryo Measurements
 
