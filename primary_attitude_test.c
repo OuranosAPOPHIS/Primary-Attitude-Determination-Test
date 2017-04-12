@@ -4,7 +4,7 @@
  *
  *  Created On: March 7 , 2017
  *  Last Updated: March 8, 2017
- *  Test Dat: March 8, 2017
+ *  Test Date: March 8, 2017
  *      Author(s): Brandon Klefman
  *                 Damian Barraza
  *                 Abigail Couto
@@ -405,7 +405,6 @@ int main(void) {
 	TurnOffLED(1);
 	SysTickPeriodSet(g_SysClockSpeed / 12);
 	SysTickEnable();
-
 
 	//
 	// Activate the radio timers.
@@ -1103,14 +1102,13 @@ void ProcessIMUData(void) {
             //
             // static update.
             StaticUpdateAttitude(&sAttData);
-            g_FirstTime = false;
+            g_FirstTime = true;
 		}
 		else {
 	        //
 	        // dynamic update.
 	        DynamicUpdateAttitude(&sAttData);
 		}
-
 
 		//
 		// Update the Euler Angles.
@@ -1125,10 +1123,10 @@ void ProcessIMUData(void) {
 
 	if (g_PrintRawBMIData && g_PrintFlag)
 	{
-		int temp[3] = {(int)g_fEulerAngles[0], (int)g_fEulerAngles[1], (int)g_fEulerAngles[2]};
-		int dec[3] = {(int)(g_fEulerAngles[0] * 100) - (int)(g_fEulerAngles[0]),
-					  (int)(g_fEulerAngles[1] * 100) - (int)(g_fEulerAngles[1]),
-					  (int)(g_fEulerAngles[2] * 100) - (int)(g_fEulerAngles[2])};
+		int temp[3] = {(int)sAttData.fPitch, (int)sAttData.fRoll, (int)sAttData.fYaw};
+		int dec[3] = {(int)(sAttData.fPitch * 100) - (int)(sAttData.fPitch),
+					  (int)(sAttData.fRoll * 100) - (int)(sAttData.fRoll),
+					  (int)(sAttData.fYaw * 100) - (int)(sAttData.fYaw)};
 
 		UARTprintf("Pitch: %d.%d\r\n", temp[0], dec[0]);
 		UARTprintf("Roll: %d.%d\r\n", temp[1], dec[1]);
