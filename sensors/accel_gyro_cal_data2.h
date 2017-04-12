@@ -2,7 +2,8 @@
  * accel_gyro_cal_data2.h
  *
  *  Created on: Apr 12, 2017
- *      Author: Brandon Klefman
+ *      Author: Brandon Klefman,
+ *              Abby Couto
  *
  *      Purpose: The gyro and accel misalignment and scale
  *               factor terms inverted, for faster operation
