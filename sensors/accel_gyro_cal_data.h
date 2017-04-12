@@ -9,6 +9,8 @@
  *      		 in C. These values were found using the orignal
  *      		 scale factor and misalignment factors and
  *      		 calculating the inverse using MATLAB.
+ *
+ *      		 NOTE: This calibration data is for boosterpack 1.
  */
 
 #ifndef SENSORS_ACCEL_GYRO_CAL_DATA_H_

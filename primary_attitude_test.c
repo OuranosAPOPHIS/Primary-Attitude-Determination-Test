@@ -48,7 +48,10 @@
 
 #include "sensors/bmi160.h"
 #include "sensors/i2c_driver.h"
-#include "sensors/accel_gyro_cal_data.h"
+
+//
+// Calibration data file. Change to # for boosterpack used.
+#include "sensors/accel_gyro_cal_data2.h"
 
 #include "attitude_estimation.h"
 
@@ -62,12 +65,20 @@ extern void CustomCompDCMStart(tCompDCM *psDCM);
 //
 //*****************************************************************************
 
-#define DEBUG true
+#define DEBUG false
 #define APOPHIS false
 
 #define SPEEDIS120MHZ true
 
+#define CALIB_TEST false
+#define VALID_TEST true
+
+#if CALIB_TEST
+#define STABBIAS false
+#else
 #define STABBIAS true
+#endif
+
 
 //
 // The number of LSB per degree/s for 125 degrees/s.
@@ -1081,6 +1092,7 @@ void ProcessIMUData(void) {
 		fAccelDataUnCal[1] = (((float) i16AccelData[1]) / ACCELLSB) - BAY;
 		fAccelDataUnCal[2] = (((float) i16AccelData[2]) / ACCELLSB) - BAZ;
 
+#if !CALIB_TEST
 		//
 		// Calculate the calibrated gyro data.
 		g_fGyroData[0] = (fGyroDataUnCal[0] * SGX + fGyroDataUnCal[1] * MGXY + fGyroDataUnCal[2] * MGXZ) - g_GyroStabBias[0];
@@ -1092,6 +1104,20 @@ void ProcessIMUData(void) {
 		g_fAccelData[0] = fAccelDataUnCal[0] * SAX + fAccelDataUnCal[1] * MAXY + fAccelDataUnCal[2] * MAXZ;
 		g_fAccelData[1] = fAccelDataUnCal[0] * MAYX + fAccelDataUnCal[1] * SAY + fAccelDataUnCal[2] * MAYZ;
 		g_fAccelData[2] = fAccelDataUnCal[0] * MAZX + fAccelDataUnCal[1] * MAZY + fAccelDataUnCal[2] * SAZ;
+#endif
+#if CALIB_TEST
+		//
+        // Just use the uncalibrated data.
+        g_fGyroData[0] = fGyroDataUnCal[0];
+        g_fGyroData[1] = fGyroDataUnCal[1];
+        g_fGyroData[2] = fGyroDataUnCal[2];
+
+        //
+        // Just use the uncalibrated data.
+        g_fAccelData[0] = fAccelDataUnCal[0];
+        g_fAccelData[1] = fAccelDataUnCal[1];
+        g_fAccelData[2] = fAccelDataUnCal[2];
+#endif
 
 		//
 		// Update structure data.
@@ -1102,7 +1128,16 @@ void ProcessIMUData(void) {
             //
             // static update.
             StaticUpdateAttitude(&sAttData);
+
+#if CALIB_TEST || VALID_TEST
+            //
+            // maintain static attitude function.
             g_FirstTime = true;
+#else
+            //
+            // Otherwise normal operation between static and dynamic.
+            g_FirstTime = false;
+#endif
 		}
 		else {
 	        //

@@ -232,3 +232,9 @@ GyroCal.ScaleFactor = struct('sGx',sgx,'sGy',sgy,'sGz',sgz);
 GyroCal.Misalignment = struct('mGxy',mgxy,'mGxz',mgxz,'mGyx',mgyx,'mGyz',mgyz,'mGzx',mgzx,'mGzy',mgzy);
 
 save('IMU_Calibration_Data','A_xyz','W_xyz','AccelCal','GyroCal')
+
+%% Calculate the inverses for the matrices for convenient C code.
+
+Mainv = inv(eye(3,3) + Ma);
+
+Mginv = inv(eye(3,3) + Mg);
