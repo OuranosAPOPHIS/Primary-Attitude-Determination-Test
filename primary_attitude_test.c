@@ -50,8 +50,26 @@
 #include "sensors/i2c_driver.h"
 
 //
-// Calibration data file. Change to # for boosterpack used.
+// Sensor-Boosterpack defines.
+// This allows alternation between the three
+// different sensor packs and their associated
+// calibration data. Only the first true value of
+// the three defines will be processed, the others
+// will be skipped. It is safe to leave one as true
+// and the other two as false.
+#define BOOSTERPACK1 false
+#define BOOSTERPACK2 true
+#define BOOSTERPACK3 false
+
+//
+// Sensor-Boosterpack Calibration data.
+#if BOOSTERPACK1
+#include "sensors/accel_gyro_cal_data1.h"
+#elif BOOSTERPACK2
 #include "sensors/accel_gyro_cal_data2.h"
+#elif BOOSTERPACK3
+#include "sensors/accel_gyro_cal_data3.h"
+#endif
 
 #include "attitude_estimation.h"
 
